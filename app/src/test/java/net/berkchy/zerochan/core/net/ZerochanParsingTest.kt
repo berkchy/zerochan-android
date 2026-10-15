@@ -1,6 +1,7 @@
 package net.berkchy.zerochan.core.net
 
 import net.berkchy.zerochan.core.model.ListingDto
+import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.model.PostDetailDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -125,7 +126,7 @@ class ZerochanParsingTest {
 
     @Test
     fun `aspect ratio is clamped by the grid but kept raw on the model`() {
-        val post = net.berkchy.zerochan.core.model.Post(
+        val post = Post(
             id = 1,
             width = 4000,
             height = 200,
@@ -142,8 +143,6 @@ class ZerochanParsingTest {
         assertEquals("", "".toSourceHostForTest())
     }
 
-    private fun String.toSourceHostForTest() = net.berkchy.zerochan.core.model.run {
-        val post = Post(id = 1, width = 1, height = 1, thumbnail = "", source = this@toSourceHostForTest)
-        post.sourceHost
-    }
+    private fun String.toSourceHostForTest(): String =
+        Post(id = 1, width = 1, height = 1, thumbnail = "", source = this).sourceHost
 }
