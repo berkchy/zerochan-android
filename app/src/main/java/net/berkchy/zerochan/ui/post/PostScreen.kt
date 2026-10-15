@@ -23,7 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.pager.snapshotFlow
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -192,7 +192,7 @@ private fun PostContent(
     )
 
     LaunchedEffect(pagerState) {
-        pagerState.snapshotFlow { it.currentPage }.collect { onPageChanged(it) }
+        snapshotFlow { pagerState.currentPage }.collect { onPageChanged(it) }
     }
 
     Column(
