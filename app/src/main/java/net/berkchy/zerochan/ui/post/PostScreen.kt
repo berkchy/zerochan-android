@@ -86,7 +86,6 @@ fun PostScreen(
     onOpenSource: () -> Unit,
     onTagClick: (String) -> Unit,
     onToast: () -> Unit,
-    onOpenViewer: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbar = remember { SnackbarHostState() }
@@ -148,7 +147,15 @@ fun PostScreen(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     icon = { Icon(Icons.Rounded.Download, contentDescription = null) },
-                    text = { Text("Download") },
+                    text = {
+                        Text(
+                            when (val s = state.downloadState) {
+                                is DownloadState.Running -> "Downloading ${s.percent}%"
+                                is DownloadState.Done -> "Saved"
+                                else -> "Download"
+                            }
+                        )
+                    },
                 )
             }
         },
@@ -168,7 +175,6 @@ fun PostScreen(
                 onShare = onShare,
                 onOpenSource = onOpenSource,
                 onTagClick = onTagClick,
-                onOpenViewer = onOpenViewer,
             )
         }
     }
@@ -183,7 +189,6 @@ private fun PostContent(
     onShare: () -> Unit,
     onOpenSource: () -> Unit,
     onTagClick: (String) -> Unit,
-    onOpenViewer: (Long) -> Unit,
 ) {
     val pages = state.pagerItems.ifEmpty { listOf(detail.id) }
     val pagerState = rememberPagerState(
@@ -209,8 +214,8 @@ private fun PostContent(
                 .background(Color.Black)
         ) {
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { _ ->
-                // Tapping the picture opens the viewer with the WxH line and both download buttons.
-                PostPreview(detail = detail, onTap = { onOpenViewer(detail.id) })
+                // Swiping left/right walks the images that belong to this post.
+                PostPreview(detail = detail)
             }
 
             if (pages.size > 1) {
@@ -275,7 +280,7 @@ private fun PostContent(
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(post.aspectRatio.coerceIn(0.4f, 2.2f))
+                                .aspectRatio(1f)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                         ) {
@@ -315,13 +320,12 @@ private fun PostContent(
 }
 
 @Composable
-private fun PostPreview(detail: PostDetail, onTap: () -> Unit) {
+private fun PostPreview(detail: PostDetail) {
     Box(
         Modifier
             .fillMaxWidth()
             .aspectRatio(detail.aspectRatio.coerceIn(0.35f, 2.4f))
-            .background(Color.Black)
-            .clickable(onClick = onTap),
+            .background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         AsyncPhotoFit(
@@ -329,23 +333,6 @@ private fun PostPreview(detail: PostDetail, onTap: () -> Unit) {
             contentDescription = detail.displayName,
             modifier = Modifier.fillMaxSize(),
         )
-        // Download affordance sits inside the picture, bottom right.
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = Color.Black.copy(alpha = 0.55f),
-        ) {
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(Icons.Rounded.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Text("Download", style = MaterialTheme.typography.labelMedium, color = Color.White)
-            }
-        }
     }
 }
 

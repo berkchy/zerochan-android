@@ -111,7 +111,7 @@ private fun LibraryCell(thumbnail: String, tag: String, id: Long, onClick: () ->
         Box(
             Modifier
                 .fillMaxWidth()
-                .aspectRatio(0.82f)
+                .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))
         ) {
             AsyncImage(

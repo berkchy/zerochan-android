@@ -54,7 +54,6 @@ import net.berkchy.zerochan.ui.downloads.LibraryScreen
 import net.berkchy.zerochan.ui.downloads.LibraryViewModel
 import net.berkchy.zerochan.ui.home.FeedScreen
 import net.berkchy.zerochan.ui.home.FeedViewModel
-import net.berkchy.zerochan.ui.post.ImageViewerDialog
 import net.berkchy.zerochan.ui.post.PostScreen
 import net.berkchy.zerochan.ui.post.PostViewModel
 
@@ -211,21 +210,8 @@ fun ZerochanNavHost(
                     onOpenSource = { state.detail?.source?.takeIf { it.isNotBlank() }?.let(onOpenUrl) },
                     onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
                     onToast = vm::consumeToast,
-                    onOpenViewer = vm::openViewer,
                     modifier = safePadding,
                 )
-
-                val viewerId = state.viewerId
-                val viewerDetail = state.detail
-                if (viewerId != null && viewerDetail != null && viewerDetail.id == viewerId) {
-                    ImageViewerDialog(
-                        detail = viewerDetail,
-                        downloadState = state.downloadState,
-                        onDismiss = vm::dismissViewer,
-                        onDownload = vm::download,
-                        onShare = { onShare(viewerDetail.postUrl, viewerDetail.displayName) },
-                    )
-                }
             }
         }
     }

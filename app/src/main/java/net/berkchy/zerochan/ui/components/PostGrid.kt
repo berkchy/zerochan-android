@@ -65,7 +65,7 @@ fun PostGrid(
         ) { index ->
             val post = posts[index]
             if (post == null) {
-                ShimmerBox(Modifier.aspectRatio(0.8f))
+                ShimmerBox(Modifier.aspectRatio(1f))
             } else {
                 PostGridItem(post = post, onClick = { onPostClick(post) })
             }
@@ -90,10 +90,12 @@ fun PostGridItem(
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick),
     ) {
+        // Uniform square cells: the grid stays perfectly aligned no matter how the artwork is
+        // proportioned, and the preview is centre cropped.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(post.aspectRatio.coerceIn(0.4f, 2.2f))
+                .aspectRatio(1f)
         ) {
             GridImage(
                 url = post.thumbnail,

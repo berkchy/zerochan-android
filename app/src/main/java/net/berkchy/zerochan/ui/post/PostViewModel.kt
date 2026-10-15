@@ -26,8 +26,6 @@ data class PostUiState(
     val isFavorite: Boolean = false,
     val downloadState: DownloadState? = null,
     val toast: String? = null,
-    /** Id of the post whose full screen viewer is open, if any. */
-    val viewerId: Long? = null,
 )
 
 class PostViewModel(
@@ -150,14 +148,6 @@ class PostViewModel(
                 else -> Unit
             }
         }
-    }
-
-    fun openViewer(id: Long = postId) {
-        _state.value = _state.value.copy(viewerId = id)
-    }
-
-    fun dismissViewer() {
-        _state.value = _state.value.copy(viewerId = null)
     }
 
     fun consumeToast() {

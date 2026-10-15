@@ -98,9 +98,15 @@ class BotCheckInterceptor(
         private const val MAX_BODY = 8L * 1024L
         private val TAG = "botcheck"
 
-        val USER_AGENT: String
-            get() = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        /**
+         * zerochan only emits the `?json` / `?xml` variants for what it considers a desktop
+         * browser. With a mobile (or bare `okhttp`) User-Agent it quietly answers `/{id}?json`
+         * with the rendered html page instead, which is why post details used to fail with
+         * "unexpected response".
+         */
+        const val USER_AGENT: String =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
 }
 
