@@ -1,0 +1,149 @@
+package net.berkchy.zerochan.core.net
+
+import net.berkchy.zerochan.core.model.ListingDto
+import net.berkchy.zerochan.core.model.PostDetailDto
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * These run against payloads captured from the live site, because the listing endpoints are the
+ * weird part of it: HTTP 500 with a `{ ... }` wrapper around the json document.
+ */
+class ZerochanParsingTest {
+
+    private fun asset(name: String): String =
+        checkNotNull(javaClass.classLoader?.getResourceAsStream(name)) { "missing fixture $name" }
+            .bufferedReader().use { it.readText() }
+
+    // ------------------------------------------------------------------ envelope
+
+    @Test
+    fun `listing envelope is unwrapped even though the body has trailing html`() {
+        val body = asset("listing_page1.txt")
+        assertTrue(JsonEnvelope.hasItems(body))
+        assertFalse(JsonEnvelope.isChallenge(body))
+
+        val dto = JsonEnvelope.decode<ListingDto>(body)
+        assertNotNull(dto)
+        assertEquals(48, dto!!.items.size)
+
+        val first = dto.items.first()
+        assertEquals("4732146", first.id)
+        assertEquals("1644", first.width)
+        assertEquals("2192", first.height)
+        assertEquals("https://s3.zerochan.net/240/46/42/4732146.avif", first.thumbnail)
+        assertTrue(first.source.startsWith("https://"))
+        assertTrue(first.tags.isNotEmpty())
+    }
+
+    @Test
+    fun `plain post json is parsed without unwrapping`() {
+        val body = asset("post_detail.json")
+        assertFalse(JsonEnvelope.hasItems(body))
+        assertTrue(JsonEnvelope.isJsonObject(body))
+
+        val dto = JsonEnvelope.decode<PostDetailDto>(body)
+        assertNotNull(dto)
+        assertEquals(4732249L, dto!!.id)
+        assertEquals(1341, dto.width)
+        assertEquals(2184, dto.height)
+        assertEquals(2512896L, dto.size)
+        assertTrue(dto.full.endsWith(".png"))
+        assertEquals("https://www.pixiv.net/artworks/147247560", dto.source)
+        assertEquals("Lucifer (Ao No Exorcist)", dto.primary)
+    }
+
+    @Test
+    fun `truncated payloads are rejected instead of parsed into garbage`() {
+        val body = asset("listing_page1.txt")
+        val truncated = body.substring(0, body.length / 3)
+        assertFalse(JsonEnvelope.hasItems(truncated))
+        assertNull(JsonEnvelope.decode<ListingDto>(truncated))
+    }
+
+    @Test
+    fun `bot check challenge is detected and the token extracted`() {
+        val challenge = """
+            <!DOCTYPE html><html><body>
+            <img src="/totally-innocent-logo-image.svg?Z_Mo3MPA" onload="location.reload()">
+            </body></html>
+        """.trimIndent()
+        assertTrue(JsonEnvelope.isChallenge(challenge))
+        assertEquals("Z_Mo3MPA", JsonEnvelope.challengeToken(challenge))
+        assertFalse(JsonEnvelope.isChallenge("not a challenge"))
+    }
+
+    // ------------------------------------------------------------------ html
+
+    @Test
+    fun `favorite counts and multi image groups come from the desktop markup`() {
+        val enrichment = HtmlParser.parseListing(asset("listing_page1.html"))
+
+        // id 4732146 is rendered as `<a data-id="4732146" class="fav"><b ...>4</b></a>`
+        assertEquals(4, enrichment.favoritesOf(4732146L))
+        assertNotNull(enrichment.favoritesOf(4732247L))
+
+        // 4732141 is a grouped post: data-children="4732141,4732142"
+        assertEquals(listOf(4732141L, 4732142L), enrichment.childrenOf(4732141L))
+        assertNull(enrichment.childrenOf(4732146L))
+    }
+
+    @Test
+    fun `post page metadata is scraped from ld json and the tag list`() {
+        val meta = HtmlParser.parsePostMeta(asset("post_page.html"))
+        assertEquals(1, meta.favorites)
+        assertEquals("png", meta.encodingFormat)
+        assertEquals("RSAMV", meta.uploadedBy)
+        assertTrue(meta.typedTags.any { it.type == "character" && it.name == "Lucifer (Ao No Exorcist)" })
+        assertTrue(meta.typedTags.any { it.type == "mangaka" && it.name == "Pixiv ID 124800819" })
+    }
+
+    @Test
+    fun `similar fragment yields posts with dimensions and favorites`() {
+        val similar = HtmlParser.parseSimilar(asset("similar.html"))
+        assertTrue("expected a non empty similar list", similar.isNotEmpty())
+        val first = similar.first()
+        assertEquals(4723362L, first.id)
+        assertTrue(first.width > 0 && first.height > 0)
+        assertTrue(first.thumbnail.startsWith("https://"))
+    }
+
+    @Test
+    fun `grid html listing parses into full posts`() {
+        val grid = HtmlParser.parseGrid(asset("listing_page1.html"))
+        assertEquals(48, grid.size)
+        val grouped = grid.firstOrNull { it.isMultiple }
+        assertNotNull("expected at least one grouped post in page 1", grouped)
+        assertTrue(grouped!!.children.size > 1)
+    }
+
+    // ------------------------------------------------------------------ model
+
+    @Test
+    fun `aspect ratio is clamped by the grid but kept raw on the model`() {
+        val post = net.berkchy.zerochan.core.model.Post(
+            id = 1,
+            width = 4000,
+            height = 200,
+            thumbnail = "",
+        )
+        assertEquals(20f, post.aspectRatio, 0.001f)
+        assertFalse(post.isMultiple)
+        assertEquals("https://www.zerochan.net/1", post.fullUrl)
+    }
+
+    @Test
+    fun `source host is stripped of the www prefix`() {
+        assertEquals("pixiv.net", "https://www.pixiv.net/en/artworks/1".toSourceHostForTest())
+        assertEquals("", "".toSourceHostForTest())
+    }
+
+    private fun String.toSourceHostForTest() = net.berkchy.zerochan.core.model.run {
+        val post = Post(id = 1, width = 1, height = 1, thumbnail = "", source = this@toSourceHostForTest)
+        post.sourceHost
+    }
+}
