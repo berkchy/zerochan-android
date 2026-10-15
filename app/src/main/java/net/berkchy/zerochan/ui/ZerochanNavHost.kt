@@ -1,0 +1,283 @@
+package net.berkchy.zerochan.ui
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CollectionsBookmark
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import net.berkchy.zerochan.core.data.ZerochanRepository
+import net.berkchy.zerochan.ui.downloads.LibraryScreen
+import net.berkchy.zerochan.ui.downloads.LibraryViewModel
+import net.berkchy.zerochan.ui.home.FeedScreen
+import net.berkchy.zerochan.ui.home.FeedViewModel
+import net.berkchy.zerochan.ui.post.ImageViewerDialog
+import net.berkchy.zerochan.ui.post.PostScreen
+import net.berkchy.zerochan.ui.post.PostViewModel
+
+private const val ARG_FEED = "feed"
+private const val ARG_POST = "postId"
+private const val ARG_CHILDREN = "children"
+
+object Destination {
+    const val HOME = "home"
+    const val POPULAR = "feed/popular"
+    const val LIBRARY = "library"
+    const val POST = "post/{$ARG_POST}?{$ARG_CHILDREN}"
+    const val TAG = "feed/{$ARG_FEED}"
+
+    fun postRoute(id: Long, children: List<Long>) =
+        "post/$id?$ARG_CHILDREN=${children.joinToString("-")}"
+
+    fun tagRoute(encoded: String) = "feed/$encoded"
+}
+
+@Composable
+fun ZerochanNavHost(
+    repository: ZerochanRepository,
+    onShare: (String, String) -> Unit,
+    onOpenUrl: (String) -> Unit,
+) {
+    val navController = rememberNavController()
+    val backStack by navController.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    val showBars = currentRoute in setOf(Destination.HOME, Destination.POPULAR, Destination.LIBRARY)
+
+    Scaffold(
+        bottomBar = {
+            AnimatedVisibility(showBars, enter = fadeIn(), exit = fadeOut()) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = currentRoute == Destination.HOME,
+                        onClick = { navController.navigateTop(Destination.HOME) },
+                        icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
+                        label = { Text("Home") },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Destination.POPULAR,
+                        onClick = { navController.navigateTop(Destination.POPULAR) },
+                        icon = { Icon(Icons.Rounded.LocalFireDepartment, contentDescription = null) },
+                        label = { Text("Popular") },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Destination.LIBRARY,
+                        onClick = { navController.navigateTop(Destination.LIBRARY) },
+                        icon = { Icon(Icons.Rounded.CollectionsBookmark, contentDescription = null) },
+                        label = { Text("Library") },
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        NavHost(
+            navController = navController,
+            startDestination = Destination.HOME,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            composable(Destination.HOME) {
+                val vm: FeedViewModel = viewModel(factory = FeedViewModel.Factory(repository, null))
+                FeedScreen(
+                    viewModel = vm,
+                    onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
+                    onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                    topContent = { SearchField { navController.navigate(Destination.tagRoute(encodeTag(it))) } },
+                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                )
+            }
+
+            composable(Destination.POPULAR) {
+                val vm: FeedViewModel = viewModel(factory = FeedViewModel.Factory(repository, "popular"))
+                FeedScreen(
+                    viewModel = vm,
+                    onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
+                    onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                )
+            }
+
+            composable(Destination.LIBRARY) {
+                val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(repository))
+                LibraryScreen(
+                    viewModel = vm,
+                    onFavoriteClick = { navController.navigate(Destination.postRoute(it, emptyList())) },
+                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                )
+            }
+
+            composable(
+                route = Destination.TAG,
+                arguments = listOf(navArgument(ARG_FEED) { type = NavType.StringType }),
+            ) { entry ->
+                val path = entry.arguments?.getString(ARG_FEED).orEmpty()
+                val vm: FeedViewModel = viewModel(
+                    key = "feed-$path",
+                    factory = FeedViewModel.Factory(repository, path),
+                )
+                FeedScreen(
+                    viewModel = vm,
+                    onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
+                    onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                    topContent = {
+                        Column {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { navController.popBackStack() }) {
+                                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                                }
+                                SearchField(
+                                    initial = path.replace("%20", " "),
+                                    onSubmit = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+
+            composable(
+                route = Destination.POST,
+                arguments = listOf(
+                    navArgument(ARG_POST) { type = NavType.LongType },
+                    navArgument(ARG_CHILDREN) { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { entry ->
+                val id = entry.arguments?.getLong(ARG_POST) ?: 0L
+                val children = entry.arguments?.getString(ARG_CHILDREN)
+                    ?.split('-')?.mapNotNull { it.toLongOrNull() }.orEmpty()
+                val vm: PostViewModel = viewModel(
+                    key = "post-$id",
+                    factory = PostViewModel.Factory(repository, id, children),
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+
+                PostScreen(
+                    state = state,
+                    onBack = { navController.popBackStack() },
+                    onPageChanged = vm::onPageChanged,
+                    onRetry = vm::retry,
+                    onToggleFavorite = vm::toggleFavorite,
+                    onDownload = vm::download,
+                    onShare = { state.detail?.let { onShare(it.postUrl, "${it.displayName} · zerochan") } },
+                    onOpenSource = { state.detail?.source?.takeIf { it.isNotBlank() }?.let(onOpenUrl) },
+                    onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                    onToast = vm::consumeToast,
+                    onOpenViewer = vm::openViewer,
+                    modifier = Modifier.padding(
+                        top = padding.calculateTopPadding(),
+                        bottom = padding.calculateBottomPadding(),
+                    ),
+                )
+
+                val viewerId = state.viewerId
+                val viewerDetail = state.detail
+                if (viewerId != null && viewerDetail != null && viewerDetail.id == viewerId) {
+                    ImageViewerDialog(
+                        detail = viewerDetail,
+                        downloadState = state.downloadState,
+                        onDismiss = vm::dismissViewer,
+                        onDownload = vm::download,
+                        onShare = { onShare(viewerDetail.postUrl, viewerDetail.displayName) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchField(
+    initial: String = "",
+    onSubmit: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var text by remember { mutableStateOf(initial) }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(initial) { if (initial.isNotBlank()) text = initial }
+
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            placeholder = { Text("Search tags, characters, artists") },
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+            trailingIcon = {
+                if (text.isNotBlank()) {
+                    IconButton(onClick = { text = "" }) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Clear")
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Words,
+                imeAction = ImeAction.Search,
+            ),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    if (text.isNotBlank()) {
+                        onSubmit(text.trim())
+                        keyboard?.hide()
+                        focusManager.clearFocus()
+                    }
+                },
+            ),
+        )
+    }
+}
+
+private fun NavHostController.navigateTop(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+private fun encodeTag(value: String): String =
+    java.net.URLEncoder.encode(value, "UTF-8").replace("+", "%20")
