@@ -4,64 +4,68 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.core.download.DownloadState
 import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.model.PostDetail
 
+/** One swipeable page: either a picture of this post, or a related post. */
+data class PagerItem(
+    val id: Long,
+    val thumbnail: String,
+    val preview: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
+    val tag: String = "",
+    val partOfPost: Boolean = true,
+) {
+    val bestUrl: String get() = preview.ifBlank { thumbnail }
+    val ratio: Float
+        get() = if (width > 0 && height > 0) width.toFloat() / height.toFloat() else 1f
+}
+
 data class PostUiState(
     val loading: Boolean = true,
     val detail: PostDetail? = null,
     val error: String? = null,
-    val pagerItems: List<Long> = emptyList(),
-    val pagerIndex: Int = 0,
-    val related: List<Post> = emptyList(),
+    val pager: List<PagerItem> = emptyList(),
+    val currentId: Long = 0,
     val isFavorite: Boolean = false,
     val downloadState: DownloadState? = null,
     val toast: String? = null,
-)
+) {
+    val currentIndex: Int get() = pager.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+    val current: PagerItem? get() = pager.getOrNull(currentIndex)
+}
 
 class PostViewModel(
     private val repository: ZerochanRepository,
     private val postId: Long,
-    initialPagerItems: List<Long>,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PostUiState())
+    private val _state = MutableStateFlow(PostUiState(currentId = postId))
     val state: StateFlow<PostUiState> = _state.asStateFlow()
 
-    private var pagerJob: Job? = null
+    private var detailJob: Job? = null
 
     init {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(
-                pagerItems = if (initialPagerItems.isEmpty()) listOf(postId) else initialPagerItems,
-                pagerIndex = initialPagerItems.indexOf(postId).coerceAtLeast(0),
-            )
-        }
         load(postId)
-        observeFavorite()
     }
 
     fun load(id: Long) {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, error = null, detail = null)
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            _state.value = _state.value.copy(loading = true, error = null, detail = null, currentId = id)
             runCatching { repository.detail(id) }
                 .onSuccess { detail ->
                     _state.value = _state.value.copy(loading = false, detail = detail)
-                    val children = runCatching { repository.children(id) }.getOrDefault(listOf(id))
-                    mergePager(children)
-                    viewModelScope.launch {
-                        val related = runCatching { repository.similar(id) }.getOrDefault(emptyList())
-                        _state.value = _state.value.copy(related = related)
-                    }
+                    seedPager(detail)
+                    observeFavorite()
                 }
                 .onFailure { error ->
                     _state.value = _state.value.copy(
@@ -70,68 +74,107 @@ class PostViewModel(
                     )
                 }
         }
+        loadNeighbours(id)
     }
 
-    /** Siblings of a grouped post are appended so the pager keeps its ordering. */
-    private fun mergePager(children: List<Long>) {
-        val current = _state.value.pagerItems
-        val merged = LinkedHashSet<Long>()
-        merged += current
-        merged += children
-        merged += postId
-        val list = merged.toList()
-        _state.value = _state.value.copy(
-            pagerItems = list,
-            pagerIndex = list.indexOf(_state.value.detail?.id ?: postId).coerceAtLeast(0),
+    private fun seedPager(detail: PostDetail) {
+        val self = PagerItem(
+            id = detail.id,
+            thumbnail = detail.medium.ifBlank { detail.small },
+            preview = detail.previewUrl,
+            width = detail.width,
+            height = detail.height,
+            tag = detail.displayName,
         )
+        // keep whatever is already known about this post (e.g. a richer thumbnail from the grid)
+        _state.value = _state.value.copy(pager = listOf(self))
     }
 
-    fun onPageChanged(index: Int) {
-        val items = _state.value.pagerItems
-        val id = items.getOrNull(index) ?: return
-        if (id == _state.value.detail?.id) return
-        _state.value = _state.value.copy(pagerIndex = index)
-        pagerJob?.cancel()
-        pagerJob = viewModelScope.launch {
-            val cached = _state.value.pagerItems
-            runCatching { repository.detail(id) }.onSuccess { detail ->
-                if (cached == _state.value.pagerItems) {
-                    _state.value = _state.value.copy(detail = detail, pagerIndex = index)
+    /**
+     * The images that belong to this post come first, then zerochan's "similar" strip, so a
+     * single horizontal swipe walks from the post into the images related to it.
+     */
+    private fun loadNeighbours(id: Long) {
+        viewModelScope.launch {
+            val childrenDeferred = async { runCatching { repository.children(id) }.getOrDefault(listOf(id)) }
+            val relatedDeferred = async { runCatching { repository.similar(id) }.getOrDefault(emptyList()) }
+
+            val children = childrenDeferred.await()
+            val related = relatedDeferred.await()
+
+            val pages = LinkedHashMap<Long, PagerItem>()
+            pages[id] = pages[id] ?: PagerItem(id = id, thumbnail = "", tag = "")
+            children.forEach { child ->
+                pages[child] = pages[child] ?: PagerItem(id = child, thumbnail = "", partOfPost = true)
+            }
+            related.forEach { post -> pages.putIfAbsent(post.id, post.toPagerItem(partOfPost = false)) }
+
+            val ordered = pages.values.toList().sortedBy { if (it.partOfPost) 0 else 1 }
+            val known = _state.value.detail
+            val merged = ordered.map { item ->
+                if (item.id == known?.id) {
+                    item.copy(
+                        thumbnail = item.thumbnail.ifBlank { known.medium },
+                        preview = item.preview.ifBlank { known.previewUrl },
+                        width = if (item.width > 0) item.width else known.width,
+                        height = if (item.height > 0) item.height else known.height,
+                        tag = item.tag.ifBlank { known.displayName },
+                    )
+                } else {
+                    item
                 }
             }
+            _state.value = _state.value.copy(pager = merged, currentId = id)
         }
     }
 
-    fun openChild(id: Long) {
-        val items = _state.value.pagerItems
-        val index = items.indexOf(id)
-        if (index >= 0) {
-            _state.value = _state.value.copy(pagerIndex = index)
-            if (items[index] != _state.value.detail?.id) load(items[index])
-        } else {
-            _state.value = _state.value.copy(pagerItems = items + id, pagerIndex = items.size)
-            load(id)
+    fun onPageChanged(index: Int) {
+        val item = _state.value.pager.getOrNull(index) ?: return
+        if (item.id == _state.value.currentId) return
+        // Show the cached preview right away, then upgrade it with the 600px image.
+        _state.value = _state.value.copy(currentId = item.id)
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            runCatching { repository.detail(item.id) }.onSuccess { detail ->
+                _state.value = _state.value.copy(
+                    detail = detail,
+                    pager = _state.value.pager.map {
+                        if (it.id == detail.id) {
+                            it.copy(
+                                preview = detail.previewUrl,
+                                thumbnail = it.thumbnail.ifBlank { detail.medium },
+                                width = detail.width,
+                                height = detail.height,
+                                tag = it.tag.ifBlank { detail.displayName },
+                            )
+                        } else {
+                            it
+                        }
+                    },
+                )
+            }
         }
     }
 
     private fun observeFavorite() {
         viewModelScope.launch {
-            repository.isFavorite(postId).collect { value ->
+            repository.isFavorite(_state.value.currentId).collect { value ->
                 _state.value = _state.value.copy(isFavorite = value)
             }
         }
     }
 
     fun toggleFavorite() {
-        val detail = _state.value.detail ?: return
+        val current = _state.value.current ?: return
+        val detail = _state.value.detail?.takeIf { it.id == current.id }
         viewModelScope.launch {
             repository.toggleFavorite(
                 Post(
-                    id = detail.id,
-                    width = detail.width,
-                    height = detail.height,
-                    thumbnail = detail.medium,
-                    tag = detail.displayName,
+                    id = current.id,
+                    width = current.width,
+                    height = current.height,
+                    thumbnail = current.thumbnail,
+                    tag = current.tag.ifBlank { detail?.displayName.orEmpty() },
                 )
             )
         }
@@ -139,9 +182,11 @@ class PostViewModel(
 
     fun download() {
         val detail = _state.value.detail ?: return
-        pagerJob?.cancel()
+        detailJob?.cancel()
         viewModelScope.launch {
-            repository.startDownload(detail) { progress -> _state.value = _state.value.copy(downloadState = progress) }
+            repository.startDownload(detail) { progress ->
+                _state.value = _state.value.copy(downloadState = progress)
+            }
             when (val result = _state.value.downloadState) {
                 is DownloadState.Done -> _state.value = _state.value.copy(toast = "Saved ${result.file.name}")
                 is DownloadState.Failed -> _state.value = _state.value.copy(toast = result.reason)
@@ -154,15 +199,24 @@ class PostViewModel(
         _state.value = _state.value.copy(toast = null, downloadState = null)
     }
 
-    fun retry() = load(_state.value.detail?.id ?: postId)
+    fun retry() = load(_state.value.currentId.takeIf { it != 0L } ?: postId)
+
+    private fun Post.toPagerItem(partOfPost: Boolean) = PagerItem(
+        id = id,
+        thumbnail = thumbnail,
+        preview = "",
+        width = width,
+        height = height,
+        tag = tag,
+        partOfPost = partOfPost,
+    )
 
     class Factory(
         private val repository: ZerochanRepository,
         private val postId: Long,
-        private val pagerItems: List<Long>,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PostViewModel(repository, postId, pagerItems) as T
+            PostViewModel(repository, postId) as T
     }
 }

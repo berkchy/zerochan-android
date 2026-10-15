@@ -14,16 +14,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +31,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -54,6 +52,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,9 +68,8 @@ import net.berkchy.zerochan.core.download.DownloadState
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.model.TypedTag
 import net.berkchy.zerochan.ui.components.AsyncPhotoFit
-import net.berkchy.zerochan.ui.components.formatBytes
 import net.berkchy.zerochan.ui.components.ErrorState
-import net.berkchy.zerochan.ui.components.PostBadge
+import net.berkchy.zerochan.ui.components.formatBytes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,13 +103,13 @@ fun PostScreen(
                 title = {
                     Column {
                         Text(
-                            text = state.detail?.displayName.orEmpty().ifBlank { "Post" },
+                            text = state.current?.tag.orEmpty().ifBlank { "Post" },
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "#${state.detail?.id ?: 0}",
+                            text = "#${state.currentId}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -135,9 +133,7 @@ fun PostScreen(
                         Icon(Icons.Rounded.Share, contentDescription = "Share")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
         floatingActionButton = {
@@ -167,12 +163,10 @@ fun PostScreen(
 
             state.error != null -> ErrorState(state.error, onRetry, Modifier.padding(padding))
 
-            state.detail != null -> PostContent(
+            state.pager.isNotEmpty() -> PostContent(
                 state = state,
-                detail = state.detail,
                 padding = padding,
                 onPageChanged = onPageChanged,
-                onShare = onShare,
                 onOpenSource = onOpenSource,
                 onTagClick = onTagClick,
             )
@@ -183,19 +177,19 @@ fun PostScreen(
 @Composable
 private fun PostContent(
     state: PostUiState,
-    detail: PostDetail,
     padding: PaddingValues,
     onPageChanged: (Int) -> Unit,
-    onShare: () -> Unit,
     onOpenSource: () -> Unit,
     onTagClick: (String) -> Unit,
 ) {
-    val pages = state.pagerItems.ifEmpty { listOf(detail.id) }
-    val pagerState = rememberPagerState(
-        initialPage = state.pagerIndex.coerceIn(0, pages.lastIndex),
-        pageCount = { pages.size },
-    )
+    val pages = state.pager
+    val initial = state.currentIndex
+    val pagerState = rememberPagerState(initialPage = initial, pageCount = { pages.size })
 
+    // Keep the pager aligned with the model after the neighbour strip arrives.
+    LaunchedEffect(initial, pages.size) {
+        if (pagerState.currentPage != initial) pagerState.scrollToPage(initial)
+    }
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { onPageChanged(it) }
     }
@@ -206,18 +200,10 @@ private fun PostContent(
             .padding(padding)
             .verticalScroll(rememberScrollState())
     ) {
-        // The picture itself. Swiping left/right walks the images of the same post and,
-        // once you run past the end, the related images listed underneath.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(Color.Black)
-        ) {
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { _ ->
-                // Swiping left/right walks the images that belong to this post.
-                PostPreview(detail = detail)
+        Box(Modifier.fillMaxWidth().background(Color.Black)) {
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
+                PostPreview(pages.getOrNull(page))
             }
-
             if (pages.size > 1) {
                 Surface(
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
@@ -234,130 +220,80 @@ private fun PostContent(
             }
         }
 
-        // WxH + size + format, right under the picture.
-        ResolutionBar(detail)
+        ResolutionBar(state)
 
-        SourceRow(detail, onOpenSource, onShare)
-
-        if (state.pagerItems.size > 1) {
-            RelatedStrip(
-                title = "Images in this post",
-                items = state.pagerItems.map { id ->
-                    PostDetail(
-                        id = id,
-                        small = "",
-                        medium = detail.medium,
-                        large = detail.large,
-                        full = detail.full,
-                        width = detail.width,
-                        height = detail.height,
-                        sizeBytes = detail.sizeBytes,
-                        hash = detail.hash,
-                        source = detail.source,
-                        primaryTag = detail.primaryTag,
-                        tags = detail.tags,
-                    )
-                },
-                selectedIndex = state.pagerIndex,
-                onSelected = onPageChanged,
-            )
-        }
-
-        TagSection(detail, onTagClick)
-
-        if (state.related.isNotEmpty()) {
-            Text(
-                text = "Related posts",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-            )
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(state.related, key = { it.id }) { post ->
-                    Column(Modifier.width(110.dp)) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(post.thumbnail)
-                                    .crossfade(150)
-                                    .build(),
-                                contentDescription = post.tag,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                            PostBadge(post, Modifier.align(Alignment.BottomStart).padding(4.dp))
-                        }
-                        Text(
-                            text = post.tag.ifBlank { "#${post.id}" },
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+        state.detail?.takeIf { it.id == state.currentId }?.let { detail ->
+            SourceRow(detail, onOpenSource)
+            TagSection(detail, onTagClick)
+            if (detail.uploadedBy.isNotBlank()) {
+                Text(
+                    text = "Uploaded by ${detail.uploadedBy}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
             }
         }
 
-        if (detail.uploadedBy.isNotBlank()) {
-            Text(
-                text = "Uploaded by ${detail.uploadedBy}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
+        // Thumbnail strip mirroring the pager: pictures of this post first, then related posts.
+        PagerStrip(
+            pages = pages,
+            currentId = state.currentId,
+            onSelected = onPageChanged,
+        )
+
         Spacer(Modifier.height(96.dp))
     }
 }
 
 @Composable
-private fun PostPreview(detail: PostDetail) {
+private fun PostPreview(item: PagerItem?) {
     Box(
         Modifier
             .fillMaxWidth()
-            .aspectRatio(detail.aspectRatio.coerceIn(0.35f, 2.4f))
+            .aspectRatio((item?.ratio ?: 1f).coerceIn(0.35f, 2.4f))
             .background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
-        AsyncPhotoFit(
-            url = detail.previewUrl,
-            contentDescription = detail.displayName,
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (item != null) {
+            AsyncPhotoFit(
+                url = item.bestUrl,
+                contentDescription = item.tag.ifBlank { "Post ${item.id}" },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+        }
     }
 }
 
 @Composable
-private fun ResolutionBar(detail: PostDetail) {
+private fun ResolutionBar(state: PostUiState) {
+    val detail = state.detail?.takeIf { it.id == state.currentId }
+    val width = detail?.width ?: state.current?.width ?: 0
+    val height = detail?.height ?: state.current?.height ?: 0
+
     Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "${detail.width} x ${detail.height}",
+                text = if (width > 0 && height > 0) "$width x $height" else "loading…",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (detail.format.isNotBlank()) {
-                    Text(detail.format, style = MaterialTheme.typography.labelMedium)
-                }
-                Text(formatBytes(detail.sizeBytes), style = MaterialTheme.typography.labelMedium)
-                if (detail.favorites > 0) {
-                    Text("♥ ${detail.favorites}", style = MaterialTheme.typography.labelMedium)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (detail != null) {
+                    if (detail.format.isNotBlank()) Text(detail.format, style = MaterialTheme.typography.labelMedium)
+                    Text(formatBytes(detail.sizeBytes), style = MaterialTheme.typography.labelMedium)
+                    if (detail.favorites > 0) {
+                        Text("♥ ${detail.favorites}", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }
@@ -365,16 +301,10 @@ private fun ResolutionBar(detail: PostDetail) {
 }
 
 @Composable
-private fun SourceRow(
-    detail: PostDetail,
-    onOpenSource: () -> Unit,
-    onShare: () -> Unit,
-) {
+private fun SourceRow(detail: PostDetail, onOpenSource: () -> Unit) {
     if (detail.source.isBlank()) return
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -403,38 +333,51 @@ private fun SourceRow(
 }
 
 @Composable
-private fun RelatedStrip(
-    title: String,
-    items: List<PostDetail>,
-    selectedIndex: Int,
+private fun PagerStrip(
+    pages: List<PagerItem>,
+    currentId: Long,
     onSelected: (Int) -> Unit,
 ) {
-    Column(Modifier.padding(top = 8.dp)) {
+    if (pages.size < 2) return
+    val groupEnd = pages.indexOfFirst { !it.partOfPost }.let { if (it < 0) pages.size else it }
+
+    Column(Modifier.padding(top = 12.dp)) {
         Text(
-            text = title,
+            text = "Images in this post (${groupEnd})",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 16.dp, bottom = 6.dp),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            items(items.size, key = { items[it].id }) { index ->
-                val selected = index == selectedIndex
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(items[index].previewUrl)
-                        .crossfade(150)
-                        .build(),
-                    contentDescription = "#${items[index].id}",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .width(if (selected) 72.dp else 52.dp)
-                        .height(72.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { onSelected(index) },
-                )
+            items(pages, key = { it.id }) { item ->
+                val index = pages.indexOf(item)
+                val selected = item.id == currentId
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(item.bestUrl)
+                            .crossfade(150)
+                            .build(),
+                        contentDescription = item.tag.ifBlank { "#${item.id}" },
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .width(if (selected) 76.dp else 54.dp)
+                            .height(76.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { onSelected(index) },
+                    )
+                    if (!item.partOfPost) {
+                        Icon(
+                            Icons.Rounded.PhotoLibrary,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(10.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -443,16 +386,13 @@ private fun RelatedStrip(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TagSection(detail: PostDetail, onTagClick: (String) -> Unit) {
-    val typed = detail.typedTags.ifEmpty {
-        detail.tags.map { TypedTag(it, "tag") }
-    }
+    val typed = detail.typedTags.ifEmpty { detail.tags.map { TypedTag(it, "tag") } }
     if (typed.isEmpty()) return
 
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("Tags", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
-        val grouped = typed.groupBy { it.type }
-        grouped.forEach { (type, tags) ->
+        typed.groupBy { it.type }.forEach { (type, tags) ->
             Text(
                 text = type.replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.labelSmall,

@@ -191,11 +191,9 @@ fun ZerochanNavHost(
                 ),
             ) { entry ->
                 val id = entry.arguments?.getLong(ARG_POST) ?: 0L
-                val children = entry.arguments?.getString(ARG_CHILDREN)
-                    ?.split('-')?.mapNotNull { it.toLongOrNull() }.orEmpty()
                 val vm: PostViewModel = viewModel(
                     key = "post-$id",
-                    factory = PostViewModel.Factory(repository, id, children),
+                    factory = PostViewModel.Factory(repository, id),
                 )
                 val state by vm.state.collectAsStateWithLifecycle()
 
