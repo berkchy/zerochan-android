@@ -3,12 +3,19 @@ name: Android CI
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  ROLLING_TAG: rolling
 
 jobs:
   build:
@@ -51,6 +58,15 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      - name: Read app version
+        id: version
+        run: |
+          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
+          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | head -1)
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Build $VERSION_NAME ($VERSION_CODE)"
+
       # Uses KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD repository secrets
       # when they exist, otherwise falls back to a throwaway key so every run still yields an
       # installable APK.
@@ -86,19 +102,61 @@ jobs:
       - name: Build release APK
         run: ./gradlew --no-daemon :app:assembleRelease
 
-      - name: Upload APKs
+      - name: Collect APKs
+        run: |
+          set -e
+          mkdir -p dist
+          cp app/build/outputs/apk/release/*.apk dist/zerochan-${{ steps.version.outputs.name }}.apk
+          cp app/build/outputs/apk/debug/*.apk   dist/zerochan-${{ steps.version.outputs.name }}-debug.apk
+          ls -lh dist
+
+      # Workflow artifacts are transient: they are pruned 24 hours after the run.
+      - name: Upload artifacts (24h retention)
         uses: actions/upload-artifact@v4
         with:
           name: zerochan-apk
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
+          path: dist/*.apk
           if-no-files-found: error
+          retention-days: 1
 
-      - name: Upload APK to the workflow run
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: zerochan-release
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+      # ... while the rolling GitHub Release keeps the latest build around permanently.
+      - name: Publish rolling release
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION_NAME="${{ steps.version.outputs.name }}"
+          VERSION_CODE="${{ steps.version.outputs.code }}"
+          SHA="$(git rev-parse --short HEAD)"
+
+          NOTES=$(mktemp)
+          cat CHANGELOG.md > "$NOTES"
+          {
+            echo
+            echo "---"
+            echo
+            echo "### This build"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Version | \`$VERSION_NAME\` (versionCode $VERSION_CODE) |"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Built | $(date -u '+%Y-%m-%d %H:%M UTC') |"
+            echo "| Workflow run | [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
+            echo "| Signed | ${{ secrets.KEYSTORE_BASE64 != '' && 'project keystore' || 'ephemeral CI keystore' }} |"
+            echo
+            echo "Download \`zerochan-$VERSION_NAME.apk\` below. Allow \"install from unknown sources\" once."
+          } >> "$NOTES"
+
+          if gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
+            gh release upload "$ROLLING_TAG" dist/*.apk --clobber
+            gh release edit "$ROLLING_TAG" \
+              --title "Zerochan $VERSION_NAME (rolling)" \
+              --notes-file "$NOTES"
+          else
+            gh release create "$ROLLING_TAG" dist/*.apk \
+              --title "Zerochan $VERSION_NAME (rolling)" \
+              --notes-file "$NOTES" \
+              --latest
+          fi

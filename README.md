@@ -53,11 +53,33 @@ Details worth knowing:
 ./gradlew assembleRelease    # minified release apk
 ```
 
-CI (`.github/workflows/android.yml`) runs lint, unit tests and both variants on every push,
-and uploads the APKs as a build artifact.
+## CI
 
-Release builds are signed when `app/keystore/zerochan.jks` exists (see `KEYSTORE_PASSWORD`,
-`KEY_ALIAS`, `KEY_PASSWORD`).
+`.github/workflows/android.yml` runs on every push and pull request:
+
+1. builds the debug and release variants,
+2. uploads them as workflow artifacts with **`retention-days: 1`** (they are pruned after
+   24 hours),
+3. publishes the APKs to the rolling GitHub Release
+   [`rolling`](https://github.com/berkchy/zerochan-android/releases/tag/rolling), which is
+   overwritten on each `main` build and never expires. The release body is generated from
+   [CHANGELOG.md](CHANGELOG.md) plus a small "This build" table (version, commit, date, run
+   link, signing status).
+
+### Signing
+
+Release signing is opt-in and driven by repository secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `KEYSTORE_BASE64` | base64 of the `.jks`, decoded by the workflow |
+| `KEYSTORE_PASSWORD` | keystore password |
+| `KEY_ALIAS` | key alias |
+| `KEY_PASSWORD` | key password |
+
+When those are absent the workflow generates an ephemeral key so every run still produces an
+installable APK. Locally, dropping a keystore at `app/keystore/zerochan.jks` (or pointing
+`KEYSTORE_PATH` somewhere else) is enough - no code change required.
 
 ## Stack
 
