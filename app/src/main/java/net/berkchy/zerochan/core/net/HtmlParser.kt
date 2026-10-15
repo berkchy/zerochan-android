@@ -85,12 +85,27 @@ object HtmlParser {
         }
     }
 
+    /**
+     * The desktop post page marks the tag kind with a css class
+     * (`<li class="character primary">`) while the mobile page uses `data-type`. Both are
+     * accepted so the detail screen is populated whichever page answered.
+     */
     fun parseTypedTags(doc: Document): List<TypedTag> =
-        doc.select("ul#tags > li[data-type]").mapNotNull { li ->
-            val type = li.attr("data-type").ifBlank { return@mapNotNull null }
+        doc.select("ul#tags > li").mapNotNull { li ->
+            val type = li.attr("data-type").ifBlank {
+                li.attr("class").split(' ', '	', '
+')
+                    .mapNotNull { it.takeIf { token -> token in TAG_TYPES } }
+                    .firstOrNull()
+            } ?: return@mapNotNull null
             val name = li.selectFirst("a")?.text()?.trim().orEmpty()
             if (name.isBlank()) null else TypedTag(name, type)
         }
+
+    private val TAG_TYPES = setOf(
+        "character", "series", "outfit", "theme", "mangaka", "source", "group",
+        "copyright", "artist", "tool", "medium", "setting",
+    )
 
     fun parsePostMeta(html: String): PostMeta {
         val doc = Jsoup.parse(html)

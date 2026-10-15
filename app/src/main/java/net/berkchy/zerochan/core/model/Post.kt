@@ -29,6 +29,7 @@ data class Post(
 
 fun String.toSourceHost(): String {
     if (isBlank()) return ""
-    val host = substringAfter("://", substringBefore("://"))
+    val afterScheme = substringAfter("://", this)
+    val host = afterScheme.substringBefore('/').substringBefore('?')
     return host.removePrefix("www.")
 }

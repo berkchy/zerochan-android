@@ -86,7 +86,8 @@ class ZerochanParsingTest {
 
         // id 4732146 is rendered as `<a data-id="4732146" class="fav"><b ...>4</b></a>`
         assertEquals(4, enrichment.favoritesOf(4732146L))
-        assertNotNull(enrichment.favoritesOf(4732247L))
+        // every grid cell carries a counter, even the zero ones
+        assertEquals(48, enrichment.favorites.size)
 
         // 4732141 is a grouped post: data-children="4732141,4732142"
         assertEquals(listOf(4732141L, 4732142L), enrichment.childrenOf(4732141L))
@@ -99,8 +100,13 @@ class ZerochanParsingTest {
         assertEquals(1, meta.favorites)
         assertEquals("png", meta.encodingFormat)
         assertEquals("RSAMV", meta.uploadedBy)
-        assertTrue(meta.typedTags.any { it.type == "character" && it.name == "Lucifer (Ao No Exorcist)" })
+        // the desktop page encodes the tag kind as a css class, not as data-type
+        assertTrue(
+            "typed tags were not parsed",
+            meta.typedTags.any { it.type == "character" && it.name == "Lucifer (Ao No Exorcist)" },
+        )
         assertTrue(meta.typedTags.any { it.type == "mangaka" && it.name == "Pixiv ID 124800819" })
+        assertTrue(meta.typedTags.any { it.type == "series" && it.name == "Ao no Exorcist" })
     }
 
     @Test

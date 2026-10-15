@@ -8,9 +8,13 @@ import kotlinx.serialization.json.decodeFromJsonElement
 
 /**
  * zerochan serves its `?json` listings wrapped in a stray `{ ... }` pair followed by the
- * regular sidebar markup, and reports HTTP 500 for them even though the body is valid.
+ * regular sidebar markup, and reports HTTP 500 for them even though the body is valid:
  *
- * `"{\r\n" + <json> + "\n" + <html> + "\n}"` -> we cut the balanced JSON document out.
+ * `"{" + "\r\n" + <json> + "\r\n" + <sidebar html> + "\n}"`
+ *
+ * The interesting document therefore does not start at offset 0, and a throttled response can
+ * be truncated mid-object. Rather than guessing an offset we try every top level `{` and keep
+ * the first balanced slice that actually parses, which rejects truncated payloads for free.
  */
 object JsonEnvelope {
 
@@ -30,7 +34,7 @@ object JsonEnvelope {
     /** True when the payload really is the listing envelope and not a truncated fragment. */
     fun hasItems(body: String): Boolean {
         if (body.length < 200) return false
-        return parseListing(body)?.get("items")?.let { it is JsonArray && it.size > 0 } == true
+        return parse(body)?.get("items")?.let { it is JsonArray && it.size > 0 } == true
     }
 
     /** True when the payload parses as a complete json object. */
@@ -44,9 +48,37 @@ object JsonEnvelope {
         Regex("totally-innocent-logo-image\\.svg\\?([A-Za-z0-9_-]+)")
             .find(body)?.groupValues?.getOrNull(1)
 
-    /** Extracts the first complete JSON object embedded in an arbitrary html/text payload. */
+    /** First balanced, parseable JSON object embedded anywhere in the payload. */
     fun slice(body: String): String? {
-        val start = body.indexOfFirstBalancedStart() ?: return null
+        var index = body.indexOf('{')
+        var attempts = 0
+        while (index >= 0 && attempts < MAX_CANDIDATES) {
+            attempts++
+            val end = balancedEnd(body, index)
+            if (end > index) {
+                val candidate = body.substring(index, end)
+                if (looksLikeJson(candidate)) return candidate
+            }
+            index = body.indexOf('{', index + 1)
+        }
+        return null
+    }
+
+    fun parse(body: String): JsonObject? {
+        val slice = slice(body) ?: return null
+        return asObject(json.parseToJsonElement(slice))
+    }
+
+    inline fun <reified T> decode(body: String): T? {
+        val element = parse(body) ?: return null
+        return try {
+            json.decodeFromJsonElement(element)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun balancedEnd(body: String, start: Int): Int {
         var depth = 0
         var inString = false
         var escaped = false
@@ -65,52 +97,20 @@ object JsonEnvelope {
                 '{' -> depth++
                 '}' -> {
                     depth--
-                    if (depth == 0) return body.substring(start, i + 1)
+                    if (depth == 0) return i + 1
                 }
             }
         }
-        return null
+        return -1
     }
 
-    /**
-     * Listing endpoints answer with `"{\r\n{ ...items... }\r\n<html>...}"`, so the embedded
-     * document starts on the first line that begins with `{`. Plain `/{id}?json` endpoints
-     * start with `{` directly and are handled by [parse].
-     */
-    fun parseListing(body: String): JsonObject? {
-        val slice = slice(body) ?: return null
-        return asObject(json.parseToJsonElement(slice))
-    }
-
-    fun parse(body: String): JsonObject? {
-        val trimmed = body.trimStart()
-        if (!trimmed.startsWith("{")) return null
-        return asObject(json.parseToJsonElement(trimmed))
-    }
-
-    inline fun <reified T> decode(body: String): T? {
-        val element = parse(body) ?: return null
-        return try {
-            json.decodeFromJsonElement(element)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    inline fun <reified T> decodeListing(body: String): T? {
-        val element = parseListing(body) ?: return null
-        return try {
-            json.decodeFromJsonElement(element)
-        } catch (e: Exception) {
-            null
-        }
+    private fun looksLikeJson(candidate: String): Boolean {
+        val trimmed = candidate.trim()
+        if (trimmed.length < 2 || !trimmed.startsWith("{") || !trimmed.endsWith("}")) return false
+        return runCatching { json.parseToJsonElement(trimmed) }.isSuccess
     }
 
     private fun asObject(element: JsonElement): JsonObject? = element as? JsonObject
 
-    private fun String.indexOfFirstBalancedStart(): Int? {
-        if (startsWith("{")) return 0
-        val newline = indexOf("\n{")
-        return if (newline >= 0) newline + 1 else null
-    }
+    private const val MAX_CANDIDATES = 6
 }
