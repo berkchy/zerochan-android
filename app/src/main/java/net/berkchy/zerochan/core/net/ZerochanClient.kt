@@ -3,112 +3,34 @@ package net.berkchy.zerochan.core.net
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/**
- * Requests are funnelled through a single gate: zerochan starts truncating or challengeing
- * bursts, so document requests are spaced out and retried with backoff.
- */
-private class RequestGate(private val minIntervalMs: Long) {
-    private val mutex = Mutex()
-    private var last = 0L
-
-    suspend fun <T> run(block: suspend () -> T): T = mutex.withLock {
-        val wait = minIntervalMs - (System.currentTimeMillis() - last)
-        if (wait > 0) delay(wait)
-        try {
-            block()
-        } finally {
-            last = System.currentTimeMillis()
-        }
-    }
+object ZerochanApi {
+    const val BASE = BotCheckInterceptor.BASE
 }
 
-class NetworkException(message: String, cause: Throwable? = null) : IOException(message, cause)
+/** Listing flavours exposed by the site. */
+sealed interface Feed {
+    /** `/?p=n` - everything, newest first. */
+    data object Latest : Feed
 
-/**
- * zerochan gates every document request behind a two step cookie handshake:
- *
- *  1. `GET <page>` answers `503` with a "Checking browser..." body that references
- *     `/totally-innocent-logo-image.svg?<token>`.
- *  2. Fetching that svg with `Sec-Fetch-Dest: image` returns `Set-Cookie: xbotcheck=<value>`.
- *  3. Replaying the original request with the cookie succeeds.
- *
- * The cookie is tied to the per-request token, so it has to be solved (and refreshed) live.
- */
-class BotCheckInterceptor(
-    private val cookieJar: ZerochanCookieJar,
-) : Interceptor {
+    /** `/popular?p=n` - ranked html grid. */
+    data object Popular : Feed
 
-    override fun intercept(chain: Interceptor.Chain): Response {
-        val request = chain.request()
-        if (request.url.host != HOST || request.url.encodedPath == SVG_PATH) {
-            return chain.proceed(request)
+    /** `/<Tag>?s=id` - a character / series / artist tag page. */
+    data class Tag(val path: String) : Feed
+
+    val key: String
+        get() = when (this) {
+            Latest -> "latest"
+            Popular -> "popular"
+            is Tag -> "tag:$path"
         }
-
-        var response = chain.proceed(request)
-        var body = response.peekBody(MAX_BODY).string()
-
-        var attempt = 0
-        while (JsonEnvelope.isChallenge(body) && attempt < 2) {
-            val token = JsonEnvelope.challengeToken(body) ?: break
-            AppLog.d(TAG, "bot check challenge (attempt ${attempt + 1}), solving $SVG_PATH?$token")
-            response.close()
-            solve(chain, token)
-            attempt++
-            response = chain.proceed(request)
-            body = response.peekBody(MAX_BODY).string()
-        }
-
-        if (JsonEnvelope.isChallenge(body)) {
-            AppLog.e(TAG, "bot check could not be solved")
-            response.close()
-            throw NetworkException("Bot check failed")
-        }
-        return response
-    }
-
-    private fun solve(chain: Interceptor.Chain, token: String) {
-        val url = ("$BASE/$SVG_PATH?$token").toHttpUrlOrNull() ?: throw IOException("Bad bot check url")
-        val probe = chain.request().newBuilder()
-            .url(url)
-            .method("GET", null)
-            .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
-            .header("Sec-Fetch-Dest", "image")
-            .header("Sec-Fetch-Mode", "no-cors")
-            .header("Sec-Fetch-Site", "same-origin")
-            .removeHeader("Upgrade-Insecure-Requests")
-            .build()
-        chain.proceed(probe).close()
-        if (cookieJar.loadForRequest(url).none { it.name == "xbotcheck" }) {
-            cookieJar.clear()
-            throw NetworkException("Bot check cookie was not issued")
-        }
-        AppLog.d(TAG, "bot check solved")
-    }
-
-    private typealias Response = okhttp3.Response
-
-    companion object {
-        const val BASE = "https://www.zerochan.net"
-        const val HOST = "www.zerochan.net"
-        const val SVG_PATH = "totally-innocent-logo-image.svg"
-        private const val MAX_BODY = 8L * 1024L
-        private val TAG = "botcheck"
-
-        val USER_AGENT: String
-            get() = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-    }
 }
 
 class ZerochanClient(

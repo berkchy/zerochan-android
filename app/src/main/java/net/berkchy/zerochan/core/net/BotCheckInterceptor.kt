@@ -1,10 +1,32 @@
 package net.berkchy.zerochan.core.net
 
-import android.content.Context
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
+
+/**
+ * Requests are funnelled through a single gate: zerochan starts truncating or challengeing
+ * bursts, so document requests are spaced out and retried with backoff.
+ */
+private class RequestGate(private val minIntervalMs: Long) {
+    private val mutex = Mutex()
+    private var last = 0L
+
+    suspend fun <T> run(block: suspend () -> T): T = mutex.withLock {
+        val wait = minIntervalMs - (System.currentTimeMillis() - last)
+        if (wait > 0) delay(wait)
+        try {
+            block()
+        } finally {
+            last = System.currentTimeMillis()
+        }
+    }
+}
+
+class NetworkException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 /**
  * zerochan gates every document request behind a two step cookie handshake:
@@ -26,14 +48,26 @@ class BotCheckInterceptor(
             return chain.proceed(request)
         }
 
-        val first = chain.proceed(request)
-        val body = first.peekBody(MAX_BODY).string()
-        if (!JsonEnvelope.isChallenge(body)) return first
+        var response = chain.proceed(request)
+        var body = response.peekBody(MAX_BODY).string()
 
-        first.close()
-        val token = JsonEnvelope.challengeToken(body) ?: throw IOException("Bot check failed")
-        solve(chain, token)
-        return chain.proceed(request)
+        var attempt = 0
+        while (JsonEnvelope.isChallenge(body) && attempt < 2) {
+            val token = JsonEnvelope.challengeToken(body) ?: break
+            AppLog.d(TAG, "bot check challenge (attempt ${attempt + 1}), solving $SVG_PATH?$token")
+            response.close()
+            solve(chain, token)
+            attempt++
+            response = chain.proceed(request)
+            body = response.peekBody(MAX_BODY).string()
+        }
+
+        if (JsonEnvelope.isChallenge(body)) {
+            AppLog.e(TAG, "bot check could not be solved")
+            response.close()
+            throw NetworkException("Bot check failed")
+        }
+        return response
     }
 
     private fun solve(chain: Interceptor.Chain, token: String) {
@@ -50,18 +84,21 @@ class BotCheckInterceptor(
         chain.proceed(probe).close()
         if (cookieJar.loadForRequest(url).none { it.name == "xbotcheck" }) {
             cookieJar.clear()
-            throw IOException("Bot check cookie not issued")
+            throw NetworkException("Bot check cookie was not issued")
         }
+        AppLog.d(TAG, "bot check solved")
     }
 
-    companion object {
+        companion object {
         const val BASE = "https://www.zerochan.net"
         const val HOST = "www.zerochan.net"
         const val SVG_PATH = "totally-innocent-logo-image.svg"
         private const val MAX_BODY = 8L * 1024L
+        private val TAG = "botcheck"
 
         val USER_AGENT: String
             get() = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
     }
 }
+
