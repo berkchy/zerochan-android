@@ -1,6 +1,7 @@
 package net.berkchy.zerochan.core.net
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -25,6 +26,19 @@ object JsonEnvelope {
 
     @PublishedApi
     internal fun isChallenge(body: String): Boolean = body.contains(CHALLENGE)
+
+    /** True when the payload really is the listing envelope and not a truncated fragment. */
+    fun hasItems(body: String): Boolean {
+        if (body.length < 200) return false
+        return parseListing(body)?.get("items")?.let { it is JsonArray && it.size > 0 } == true
+    }
+
+    /** True when the payload parses as a complete json object. */
+    fun isJsonObject(body: String): Boolean {
+        val trimmed = body.trimStart()
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false
+        return parse(trimmed) != null
+    }
 
     fun challengeToken(body: String): String? =
         Regex("totally-innocent-logo-image\\.svg\\?([A-Za-z0-9_-]+)")

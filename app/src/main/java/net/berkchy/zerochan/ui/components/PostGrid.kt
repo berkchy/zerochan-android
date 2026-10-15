@@ -28,13 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import net.berkchy.zerochan.core.model.Post
 
 /**
@@ -98,13 +95,9 @@ fun PostGridItem(
                 .fillMaxWidth()
                 .aspectRatio(post.aspectRatio.coerceIn(0.4f, 2.2f))
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(post.thumbnail)
-                    .crossfade(150)
-                    .build(),
+            GridImage(
+                url = post.thumbnail,
                 contentDescription = post.tag.ifBlank { "Post ${post.id}" },
-                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
 

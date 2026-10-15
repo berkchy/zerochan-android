@@ -3,6 +3,7 @@ package net.berkchy.zerochan.core.data
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import net.berkchy.zerochan.core.model.Post
+import net.berkchy.zerochan.core.net.AppLog
 import net.berkchy.zerochan.core.net.Feed
 import net.berkchy.zerochan.core.net.ZerochanClient
 
@@ -12,11 +13,7 @@ import net.berkchy.zerochan.core.net.ZerochanClient
  */
 data class PageKey(val page: Int, val offsetId: Long? = null) {
     val next: PageKey
-        get() = if (page < MAX_PAGE_NUMBER) {
-            PageKey(page + 1)
-        } else {
-            PageKey(page + 1, offsetId)
-        }
+        get() = PageKey(page + 1)
 
     val previous: PageKey
         get() = if (page <= 1) this else PageKey(page - 1)
@@ -34,17 +31,27 @@ class PostPagingSource(
 
     override suspend fun load(params: LoadParams<PageKey>): LoadResult<PageKey, Post> {
         val key = params.key ?: PageKey.FIRST
+        AppLog.d(TAG, "load ${feed.key} key=${key.page}/${key.offsetId}")
         return runCatching { client.loadListing(feed, key.page, key.offsetId) }
             .fold(
                 onSuccess = { posts ->
-                    val next = if (posts.isEmpty()) null else key.next.withOffset(posts.last().id)
+                    AppLog.d(TAG, "load ${feed.key} key=${key.page} -> ${posts.size}")
                     LoadResult.Page(
                         data = posts,
                         prevKey = if (key.page == 1) null else key.previous,
-                        nextKey = next,
+                        nextKey = if (posts.isEmpty()) {
+                            null
+                        } else {
+                            key.next.copy(
+                                offsetId = posts.last().id.takeIf { key.page >= PageKey.MAX_PAGE_NUMBER }
+                            )
+                        },
                     )
                 },
-                onFailure = { LoadResult.Error(it) },
+                onFailure = { error ->
+                    AppLog.e(TAG, "load ${feed.key} key=${key.page} failed", error)
+                    LoadResult.Error(error)
+                },
             )
     }
 
@@ -54,6 +61,7 @@ class PostPagingSource(
         return page.prevKey ?: page.nextKey
     }
 
-    private fun PageKey.withOffset(lastId: Long) =
-        if (page >= PageKey.MAX_PAGE_NUMBER) copy(offsetId = lastId) else this
+    private companion object {
+        const val TAG = "paging"
+    }
 }

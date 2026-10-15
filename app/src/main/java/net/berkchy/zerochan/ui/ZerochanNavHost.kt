@@ -3,8 +3,8 @@ package net.berkchy.zerochan.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -112,6 +112,12 @@ fun ZerochanNavHost(
             }
         },
     ) { padding ->
+        // Consume the window insets once here so nested screens (the post screen has its own
+        // Scaffold with a TopAppBar) never stack a second status bar / navigation bar padding.
+        val safePadding = Modifier
+            .consumeWindowInsets(padding)
+            .padding(padding)
+
         NavHost(
             navController = navController,
             startDestination = Destination.HOME,
@@ -126,7 +132,7 @@ fun ZerochanNavHost(
                     topContent = {
                         SearchField(onSubmit = { navController.navigate(Destination.tagRoute(encodeTag(it))) })
                     },
-                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                    modifier = safePadding,
                 )
             }
 
@@ -136,7 +142,7 @@ fun ZerochanNavHost(
                     viewModel = vm,
                     onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
                     onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
-                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                    modifier = safePadding,
                 )
             }
 
@@ -145,7 +151,7 @@ fun ZerochanNavHost(
                 LibraryScreen(
                     viewModel = vm,
                     onFavoriteClick = { navController.navigate(Destination.postRoute(it, emptyList())) },
-                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                    modifier = safePadding,
                 )
             }
 
@@ -162,18 +168,17 @@ fun ZerochanNavHost(
                     viewModel = vm,
                     onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
                     onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                    modifier = safePadding,
                     topContent = {
-                        Column {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { navController.popBackStack() }) {
-                                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                                }
-                                SearchField(
-                                    initial = path.replace("%20", " "),
-                                    onSubmit = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
-                                    modifier = Modifier.weight(1f),
-                                )
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                             }
+                            SearchField(
+                                initial = path.replace("%20", " "),
+                                onSubmit = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     },
                 )
@@ -207,10 +212,7 @@ fun ZerochanNavHost(
                     onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
                     onToast = vm::consumeToast,
                     onOpenViewer = vm::openViewer,
-                    modifier = Modifier.padding(
-                        top = padding.calculateTopPadding(),
-                        bottom = padding.calculateBottomPadding(),
-                    ),
+                    modifier = safePadding,
                 )
 
                 val viewerId = state.viewerId

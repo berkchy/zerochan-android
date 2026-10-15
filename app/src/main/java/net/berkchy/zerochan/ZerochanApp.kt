@@ -7,6 +7,7 @@ import coil.ImageLoaderFactory
 import net.berkchy.zerochan.core.data.ZerochanDatabase
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.core.download.ImageDownloader
+import net.berkchy.zerochan.core.net.AppLog
 import net.berkchy.zerochan.core.net.BotCheckInterceptor
 import net.berkchy.zerochan.core.net.ZerochanClient
 import net.berkchy.zerochan.core.net.withAvifFallback
@@ -15,10 +16,25 @@ import java.util.concurrent.TimeUnit
 
 class ZerochanApp : Application(), ImageLoaderFactory {
 
-    lateinit var repository: ZerochanRepository
-        private set
+    /**
+     * Created eagerly: Coil may build its singleton before `onCreate` finishes, and a lateinit
+     * here would silently break every thumbnail.
+     */
+    private val imageClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            chain.proceed(
+                chain.request().newBuilder()
+                    .header("User-Agent", BotCheckInterceptor.USER_AGENT)
+                    .header("Referer", "https://www.zerochan.net/")
+                    .build()
+            )
+        }
+        .build()
 
-    lateinit var imageClient: OkHttpClient
+    lateinit var repository: ZerochanRepository
         private set
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
@@ -30,19 +46,9 @@ class ZerochanApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
-
-        imageClient = OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(120, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                    .header("User-Agent", BotCheckInterceptor.USER_AGENT)
-                    .header("Referer", "https://www.zerochan.net/")
-                    .build()
-                chain.proceed(request)
-            }
-            .build()
+        AppLog.init(this)
+        AppLog.section("start")
+        AppLog.d(TAG, "package=${packageName} version=${BuildConfig.VERSION_NAME} sdk=${android.os.Build.VERSION.SDK_INT}")
 
         val db = Room.databaseBuilder(this, ZerochanDatabase::class.java, "zerochan.db")
             .fallbackToDestructiveMigration()
@@ -53,5 +59,10 @@ class ZerochanApp : Application(), ImageLoaderFactory {
             downloader = ImageDownloader(this, imageClient),
             dao = db.libraryDao(),
         )
+        AppLog.d(TAG, "log file: ${AppLog.path(this)}")
+    }
+
+    private companion object {
+        const val TAG = "app"
     }
 }

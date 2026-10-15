@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +23,7 @@ import androidx.compose.material.icons.rounded.BrokenImage
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -43,7 +43,17 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
+import coil.request.CachePolicy
 import coil.request.ImageRequest
+import net.berkchy.zerochan.core.net.AppLog
+
+private fun rememberRequest(url: String, crossfade: Boolean = false) =
+    ImageRequest.Builder(LocalContext.current)
+        .data(url)
+        .crossfade(crossfade)
+        .memoryCachePolicy(CachePolicy.ENABLED)
+        .diskCachePolicy(CachePolicy.ENABLED)
+        .build()
 
 @Composable
 fun ErrorState(
@@ -70,7 +80,11 @@ fun ErrorState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(16.dp))
-        FilledTonalButton(onClick = onRetry) { Text("Retry") }
+        FilledTonalButton(onClick = onRetry) {
+            Icon(Icons.Rounded.Refresh, contentDescription = null)
+            Spacer(Modifier.size(6.dp))
+            Text("Retry")
+        }
     }
 }
 
@@ -96,31 +110,50 @@ fun ShimmerBox(modifier: Modifier = Modifier) {
     )
 }
 
+/** Grid thumbnail: shimmer while loading, a tappable retry glyph when it failed. */
 @Composable
-fun AsyncPhoto(
+fun GridImage(
     url: String,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
+    onRetry: (() -> Unit)? = null,
 ) {
     SubcomposeAsyncImage(
-        model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(180).build(),
+        model = rememberRequest(url),
         contentDescription = contentDescription,
         contentScale = contentScale,
         modifier = modifier,
     ) {
-        when (painter.state) {
-            is AsyncImagePainter.State.Error -> Box(
-                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.BrokenImage,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        when (val state = painter.state) {
+            is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+
+            is AsyncImagePainter.State.Error -> {
+                AppLog.w("image", "failed $url -> ${state.result.throwable.message}")
+                Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (onRetry != null) {
+                        Icon(
+                            Icons.Rounded.BrokenImage,
+                            contentDescription = "Retry",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.clickable { onRetry() },
+                        )
+                    } else {
+                        Icon(
+                            Icons.Rounded.BrokenImage,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
-            else -> ShimmerBox(Modifier.fillMaxSize())
+
+            else -> {
+                ShimmerBox(Modifier.fillMaxSize())
+            }
         }
     }
 }
@@ -132,13 +165,26 @@ fun AsyncPhotoFit(
     modifier: Modifier = Modifier,
 ) {
     SubcomposeAsyncImage(
-        model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(200).build(),
+        model = rememberRequest(url, crossfade = true),
         contentDescription = contentDescription,
         contentScale = ContentScale.Fit,
         modifier = modifier,
     ) {
-        when (painter.state) {
+        when (val state = painter.state) {
             is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+            is AsyncImagePainter.State.Error -> {
+                AppLog.w("image", "failed $url -> ${state.result.throwable.message}")
+                Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.BrokenImage,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(32.dp))
             }
