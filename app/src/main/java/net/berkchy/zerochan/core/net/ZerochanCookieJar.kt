@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 class ZerochanCookieJar(context: Context) : CookieJar {
 
@@ -14,7 +15,7 @@ class ZerochanCookieJar(context: Context) : CookieJar {
     private val store = LinkedHashMap<String, Cookie>()
 
     init {
-        val host = HttpUrl.parse(BASE)!!
+        val host = BASE.toHttpUrl()
         prefs.getString(HOST_COOKIE, null)?.let { value ->
             for (pair in value.split("; ")) {
                 val raw = Cookie.parse(host, "$pair; Path=/")

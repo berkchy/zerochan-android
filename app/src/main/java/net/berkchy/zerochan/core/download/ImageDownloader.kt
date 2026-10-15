@@ -47,7 +47,7 @@ class ImageDownloader(
                     val total = body.contentLength()
                     target.outputStream().use { out ->
                         body.byteStream().use { input ->
-                            val buffer = ByteArray(DEFAULT_CHUNK_SIZE)
+                            val buffer = ByteArray(16 * 1024)
                             var read: Int
                             var written = 0L
                             var lastPercent = -1

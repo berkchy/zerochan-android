@@ -102,6 +102,7 @@ data class PostDetail(
     }
 }
 
+@Serializable
 data class TypedTag(
     val name: String,
     val type: String,

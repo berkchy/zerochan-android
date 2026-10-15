@@ -1,6 +1,7 @@
 package net.berkchy.zerochan.core.net
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 
@@ -59,26 +60,33 @@ object JsonEnvelope {
      * document starts on the first line that begins with `{`. Plain `/{id}?json` endpoints
      * start with `{` directly and are handled by [parse].
      */
-    fun parseListing(body: String): JsonObject? {
-        val slice = slice(body) ?: return null
-        return runCatching { json.parseToJsonElement(slice) as? JsonObject }.getOrNull()
-    }
+    fun parseListing(body: String): JsonObject? = asObject(json.parseToJsonElement(slice(body) ?: return null))
 
     fun parse(body: String): JsonObject? {
         val trimmed = body.trimStart()
         if (!trimmed.startsWith("{")) return null
-        return runCatching { json.parseToJsonElement(trimmed) as? JsonObject }.getOrNull()
+        return asObject(json.parseToJsonElement(trimmed))
     }
 
     fun <T> decode(body: String): T? {
         val element = parse(body) ?: return null
-        return runCatching { json.decodeFromJsonElement(element) }.getOrNull()
+        return try {
+            json.decodeFromJsonElement(element)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun <T> decodeListing(body: String): T? {
         val element = parseListing(body) ?: return null
-        return runCatching { json.decodeFromJsonElement(element) }.getOrNull()
+        return try {
+            json.decodeFromJsonElement(element)
+        } catch (e: Exception) {
+            null
+        }
     }
+
+    private fun asObject(element: JsonElement): JsonObject? = element as? JsonObject
 
     private fun String.indexOfFirstBalancedStart(): Int? {
         if (startsWith("{")) return 0

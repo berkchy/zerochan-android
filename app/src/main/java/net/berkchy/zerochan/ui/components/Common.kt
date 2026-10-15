@@ -22,6 +22,8 @@ import androidx.compose.material.icons.rounded.BrokenImage
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -143,8 +146,24 @@ fun AsyncPhotoFit(
     }
 }
 
+/** The favourite count / grouped-image counter that sits on top of a grid thumbnail. */
 @Composable
-fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+fun PostBadge(
+    post: net.berkchy.zerochan.core.model.Post,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (post.isMultiple) Badge(post.children.size.toString(), Icons.Rounded.PhotoLibrary)
+        if (post.favorites > 0) Badge(post.favorites.toString(), Icons.Rounded.Favorite)
+    }
+}
+
+@Composable
+fun Badge(text: String, icon: ImageVector, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(6.dp))
@@ -155,6 +174,14 @@ fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, m
         Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
         Text(text = text, style = MaterialTheme.typography.labelSmall, color = Color.White)
     }
+}
+
+/** 2512896 -> "2.4 MB" */
+fun formatBytes(bytes: Long): String = when {
+    bytes <= 0 -> ""
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "${bytes / 1024} kB"
+    else -> String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
 }
 
 @Composable

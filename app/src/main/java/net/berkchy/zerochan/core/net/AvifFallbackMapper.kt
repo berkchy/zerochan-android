@@ -2,7 +2,7 @@ package net.berkchy.zerochan.core.net
 
 import android.os.Build
 import coil.ImageLoader
-import coil.Mapper
+import coil.map.Mapper
 import coil.request.Options
 
 /**

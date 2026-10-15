@@ -195,6 +195,8 @@ class ZerochanClient(
         .get()
 
     companion object {
+        private const val BASE = "https://www.zerochan.net"
+
         fun createBaseClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

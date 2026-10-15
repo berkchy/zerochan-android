@@ -57,9 +57,10 @@ fun FeedScreen(
             posts.loadState.refresh is LoadState.Loading && posts.itemCount == 0 ->
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
 
-            posts.loadState.refresh is LoadState.Error && posts.itemCount == 0 ->
+            (posts.loadState.refresh as? LoadState.Error) != null && posts.itemCount == 0 ->
                 ErrorState(
-                    message = posts.loadState.refresh.error.message ?: "Could not reach zerochan",
+                    message = (posts.loadState.refresh as LoadState.Error).error.message
+                        ?: "Could not reach zerochan",
                     onRetry = posts::retry,
                 )
 

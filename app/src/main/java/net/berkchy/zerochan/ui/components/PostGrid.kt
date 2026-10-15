@@ -24,10 +24,6 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,17 +51,6 @@ fun PostGrid(
     listState: LazyGridState = rememberLazyGridState(),
     header: (@Composable () -> Unit)? = null,
 ) {
-    val shouldPrefetch by remember(posts.itemCount) {
-        derivedStateOf {
-            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            posts.itemCount > 0 && last >= posts.itemCount - PREFETCH_DISTANCE
-        }
-    }
-
-    LaunchedEffect(shouldPrefetch) {
-        if (shouldPrefetch) posts.appendCatching()
-    }
-
     LazyVerticalGrid(
         columns = columns,
         state = listState,
@@ -80,7 +65,7 @@ fun PostGrid(
 
         items(
             count = posts.itemCount,
-            key = posts.itemKey { it.id },
+            key = { index -> posts.peek(index)?.id ?: index },
         ) { index ->
             val post = posts[index]
             if (post == null) {

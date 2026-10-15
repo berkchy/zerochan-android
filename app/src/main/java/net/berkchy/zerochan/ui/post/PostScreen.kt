@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.snapshotFlow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -68,10 +70,11 @@ import net.berkchy.zerochan.core.download.DownloadState
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.model.TypedTag
 import net.berkchy.zerochan.ui.components.AsyncPhotoFit
+import net.berkchy.zerochan.ui.components.formatBytes
 import net.berkchy.zerochan.ui.components.ErrorState
 import net.berkchy.zerochan.ui.components.PostBadge
-import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostScreen(
     state: PostUiState,

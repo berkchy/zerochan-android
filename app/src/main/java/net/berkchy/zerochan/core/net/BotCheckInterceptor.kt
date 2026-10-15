@@ -45,7 +45,7 @@ class BotCheckInterceptor(
             .header("Sec-Fetch-Dest", "image")
             .header("Sec-Fetch-Mode", "no-cors")
             .header("Sec-Fetch-Site", "same-origin")
-            .header("Upgrade-Insecure-Requests", null)
+            .removeHeader("Upgrade-Insecure-Requests")
             .build()
         chain.proceed(probe).close()
         if (cookieJar.loadForRequest(url).none { it.name == "xbotcheck" }) {

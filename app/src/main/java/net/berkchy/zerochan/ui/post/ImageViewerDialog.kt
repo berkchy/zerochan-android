@@ -37,6 +37,7 @@ import androidx.compose.ui.window.DialogProperties
 import net.berkchy.zerochan.core.download.DownloadState
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.ui.components.AsyncPhotoFit
+import net.berkchy.zerochan.ui.components.formatBytes
 import java.util.Locale
 
 /**

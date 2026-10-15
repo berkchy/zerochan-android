@@ -123,7 +123,9 @@ fun ZerochanNavHost(
                     viewModel = vm,
                     onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
                     onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
-                    topContent = { SearchField { navController.navigate(Destination.tagRoute(encodeTag(it))) } },
+                    topContent = {
+                        SearchField(onSubmit = { navController.navigate(Destination.tagRoute(encodeTag(it))) })
+                    },
                     modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
                 )
             }
