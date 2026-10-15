@@ -197,7 +197,7 @@ class ZerochanClient(
         url: String,
         attempts: Int,
         required: Boolean = true,
-        validate: (String) -> Boolean,
+        validate: (String) -> Boolean = { it.length > 200 },
     ): String? {
         cache.get(url)?.let { cached ->
             AppLog.d(TAG, "cache hit $url")

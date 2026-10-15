@@ -47,7 +47,8 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import net.berkchy.zerochan.core.net.AppLog
 
-private fun rememberRequest(url: String, crossfade: Boolean = false) =
+@Composable
+private fun rememberRequest(url: String, crossfade: Boolean = false): ImageRequest =
     ImageRequest.Builder(LocalContext.current)
         .data(url)
         .crossfade(crossfade)
