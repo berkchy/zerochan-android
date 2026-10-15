@@ -22,7 +22,9 @@ android {
     signingConfigs {
         // Release signing is opt-in: drop a keystore here (or wire it to a CI secret)
         // to get a signed build. Unsigned release builds are produced otherwise.
-        val keystore = file("keystore/zerochan.jks")
+        val keystore = file(
+            System.getenv("KEYSTORE_PATH") ?: "keystore/zerochan.jks"
+        )
         if (keystore.exists()) {
             create("release") {
                 storeFile = keystore

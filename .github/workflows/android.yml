@@ -51,15 +51,34 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      - name: Create debug keystore
+      # Uses KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD repository secrets
+      # when they exist, otherwise falls back to a throwaway key so every run still yields an
+      # installable APK.
+      - name: Set up release keystore
         run: |
           mkdir -p app/keystore
-          keytool -genkeypair -v \
-            -keystore app/keystore/debug.jks \
-            -storepass android -keypass android \
-            -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore/zerochan.jks
+            echo "KEYSTORE_PATH=app/keystore/zerochan.jks" >> "$GITHUB_ENV"
+            {
+              echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}"
+              echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}"
+              echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}"
+            } >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -v \
+              -keystore app/keystore/zerochan.jks \
+              -storepass zerochan -keypass zerochan \
+              -alias zerochan \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Zerochan, O=Zerochan, C=NA"
+            echo "KEYSTORE_PATH=app/keystore/zerochan.jks" >> "$GITHUB_ENV"
+            {
+              echo "KEYSTORE_PASSWORD=zerochan"
+              echo "KEY_ALIAS=zerochan"
+              echo "KEY_PASSWORD=zerochan"
+            } >> "$GITHUB_ENV"
+          fi
 
       - name: Build debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
@@ -74,4 +93,12 @@ jobs:
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload APK to the workflow run
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zerochan-release
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
