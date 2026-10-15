@@ -46,6 +46,25 @@ Details worth knowing:
 4. Favorite counts and multi-image groupings only exist in the desktop html, so each listing
    page also issues one html request to enrich the json payload.
 
+## App icon
+
+The artwork lives in `design/source-logo.jpg` and every Android variant is generated from it:
+
+```bash
+python3 design/generate_icons.py design/source-logo.jpg   # needs Pillow
+```
+
+| Output | Where |
+| --- | --- |
+| `ic_launcher`, `ic_launcher_round` | `mipmap-<density>` - legacy launcher icons, 48dp |
+| `ic_launcher_foreground`, `ic_launcher_background` | adaptive icon layers, 108dp canvas, artwork on the 80dp safe area |
+| `ic_launcher_monochrome` | themed icon (Android 13+), luminance cut-out so the face survives a single-colour tint |
+| `ic_splash_logo` | `drawable-nodpi`, splash screen |
+| `play-icon-512`, `play-feature-graphic` | Play Store listing assets |
+
+Five densities (mdpi to xxxhdpi), saved as WebP to keep the resource folder around 380 kB.
+`design/icon-preview.png` shows the whole set as it renders in a launcher.
+
 ## Building
 
 ```bash
