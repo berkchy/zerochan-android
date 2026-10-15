@@ -65,7 +65,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import androidx.compose.runtime.snapshotFlow
 import net.berkchy.zerochan.core.download.DownloadState
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.model.TypedTag
@@ -490,11 +489,4 @@ private fun TagSection(detail: PostDetail, onTagClick: (String) -> Unit) {
             }
         }
     }
-}
-
-private fun formatBytes(bytes: Long): String = when {
-    bytes <= 0 -> ""
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> "${bytes / 1024} kB"
-    else -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
 }

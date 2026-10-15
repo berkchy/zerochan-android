@@ -13,15 +13,18 @@ import kotlinx.serialization.json.decodeFromJsonElement
  */
 object JsonEnvelope {
 
-    private val json = Json {
+    @PublishedApi
+    internal val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
         coerceInputValues = true
     }
 
-    private val CHALLENGE = "totally-innocent-logo-image.svg"
+    @PublishedApi
+    internal val CHALLENGE = "totally-innocent-logo-image.svg"
 
-    fun isChallenge(body: String): Boolean = body.contains(CHALLENGE)
+    @PublishedApi
+    internal fun isChallenge(body: String): Boolean = body.contains(CHALLENGE)
 
     fun challengeToken(body: String): String? =
         Regex("totally-innocent-logo-image\\.svg\\?([A-Za-z0-9_-]+)")
@@ -60,7 +63,10 @@ object JsonEnvelope {
      * document starts on the first line that begins with `{`. Plain `/{id}?json` endpoints
      * start with `{` directly and are handled by [parse].
      */
-    fun parseListing(body: String): JsonObject? = asObject(json.parseToJsonElement(slice(body) ?: return null))
+    fun parseListing(body: String): JsonObject? {
+        val slice = slice(body) ?: return null
+        return asObject(json.parseToJsonElement(slice))
+    }
 
     fun parse(body: String): JsonObject? {
         val trimmed = body.trimStart()
@@ -68,7 +74,7 @@ object JsonEnvelope {
         return asObject(json.parseToJsonElement(trimmed))
     }
 
-    fun <T> decode(body: String): T? {
+    inline fun <reified T> decode(body: String): T? {
         val element = parse(body) ?: return null
         return try {
             json.decodeFromJsonElement(element)
@@ -77,7 +83,7 @@ object JsonEnvelope {
         }
     }
 
-    fun <T> decodeListing(body: String): T? {
+    inline fun <reified T> decodeListing(body: String): T? {
         val element = parseListing(body) ?: return null
         return try {
             json.decodeFromJsonElement(element)
