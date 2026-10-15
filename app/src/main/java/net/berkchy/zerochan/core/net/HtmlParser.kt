@@ -46,8 +46,7 @@ object HtmlParser {
             b.text().trim().toIntOrNull()?.let { fav[id] = it }
         }
 
-        val source = scoped ?: doc
-        return source.select("ul#thumbs2 > li, ul#thumbs > li").mapNotNull { li ->
+        return doc.select("ul#thumbs2 > li, ul#thumbs > li").mapNotNull { li ->
             gridItem(li, fav)
         }
     }
@@ -81,14 +80,21 @@ object HtmlParser {
     /** `/similar3?id=...&ajax` fragment -> lightweight post stubs for the pager strip. */
     fun parseSimilar(html: String): List<Post> {
         val doc = Jsoup.parse(html)
-        val scoped = doc.selectFirst("section#similar")
+        // the ajax endpoint returns only the section, the mobile post page inlines it
+        val scoped = doc.selectFirst("section#similar") ?: doc
+
         val fav = HashMap<Long, Int>()
-        doc.select("a.fav[data-id] > b").forEach { b ->
+        scoped.select("a.fav[data-id] > b").forEach { b ->
             val id = b.parent().attr("data-id").toLongOrNull() ?: return@forEach
             b.text().trim().toIntOrNull()?.let { fav[id] = it }
         }
-        val source = scoped ?: doc
-        return source.select("ul#thumbs2 > li, ul#thumbs > li").mapNotNull { li ->
+        // mobile markup carries the counter as a sibling <span> instead
+        scoped.select("p.actions > span").forEach { span ->
+            val id = span.previous()?.attr("data-id")?.toLongOrNull() ?: return@forEach
+            span.text().trim().toIntOrNull()?.let { fav[id] = it }
+        }
+
+        return scoped.select("ul#thumbs2 > li, ul#thumbs > li").mapNotNull { li ->
             gridItem(li, fav)
         }
     }
