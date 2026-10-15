@@ -1,6 +1,10 @@
 package net.berkchy.zerochan.core.net
 
 import android.content.Context
+import net.berkchy.zerochan.core.model.ListingDto
+import net.berkchy.zerochan.core.model.Post
+import net.berkchy.zerochan.core.model.PostDetail
+import net.berkchy.zerochan.core.model.PostDetailDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext

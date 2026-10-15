@@ -3,7 +3,9 @@ package net.berkchy.zerochan.core.net
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
+import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 
@@ -11,7 +13,7 @@ import java.io.IOException
  * Requests are funnelled through a single gate: zerochan starts truncating or challengeing
  * bursts, so document requests are spaced out and retried with backoff.
  */
-private class RequestGate(private val minIntervalMs: Long) {
+class RequestGate(private val minIntervalMs: Long) {
     private val mutex = Mutex()
     private var last = 0L
 
