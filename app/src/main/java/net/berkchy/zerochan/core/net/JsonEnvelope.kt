@@ -39,7 +39,7 @@ object JsonEnvelope {
 
     /** True when the payload parses as a complete json object. */
     fun isJsonObject(body: String): Boolean {
-        val trimmed = body.trimStart()
+        val trimmed = body.trim()
         if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false
         return parse(trimmed) != null
     }

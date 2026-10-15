@@ -139,8 +139,11 @@ object HtmlParser {
             .mapNotNull { it.groupValues[1].toLongOrNull() }
             .toList()
 
+    /** zerochan writes dimensions as `1920&#10005;1080`, i.e. U+2715, not U+00D7. */
+    private val SIZE = Regex("(\\d+)\\s*[x\u00d7\u2715\u2716*]\\s*(\\d+)")
+
     private fun parseSize(title: String): Pair<Int, Int> {
-        val m = Regex("(\\d+)\\s*[x\u00d7]\\s*(\\d+)").find(title) ?: return 0 to 0
+        val m = SIZE.find(title) ?: return 0 to 0
         return (m.groupValues[1].toIntOrNull() ?: 0) to (m.groupValues[2].toIntOrNull() ?: 0)
     }
 

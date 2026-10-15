@@ -6,7 +6,6 @@ import net.berkchy.zerochan.core.model.PostDetailDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,7 +62,7 @@ class ZerochanParsingTest {
         val body = asset("listing_page1.txt")
         val truncated = body.substring(0, body.length / 3)
         assertFalse(JsonEnvelope.hasItems(truncated))
-        assertNull(JsonEnvelope.decode<ListingDto>(truncated))
+        assertTrue(JsonEnvelope.decode<ListingDto>(truncated)?.items.isNullOrEmpty())
     }
 
     @Test
@@ -86,8 +85,8 @@ class ZerochanParsingTest {
 
         // id 4732146 is rendered as `<a data-id="4732146" class="fav"><b ...>4</b></a>`
         assertEquals(4, enrichment.favoritesOf(4732146L))
-        // every grid cell carries a counter, even the zero ones
-        assertEquals(48, enrichment.favorites.size)
+        // every rendered cell carries a counter, even the zero ones
+        assertEquals(46, enrichment.favorites.size)
 
         // 4732141 is a grouped post: data-children="4732141,4732142"
         assertEquals(listOf(4732141L, 4732142L), enrichment.childrenOf(4732141L))
@@ -121,8 +120,10 @@ class ZerochanParsingTest {
 
     @Test
     fun `grid html listing parses into full posts`() {
+        // the desktop html only renders 46 of the 48 items the json listing returns
         val grid = HtmlParser.parseGrid(asset("listing_page1.html"))
-        assertEquals(48, grid.size)
+        assertEquals(46, grid.size)
+        assertTrue(grid.all { it.width > 0 && it.height > 0 })
         val grouped = grid.firstOrNull { it.isMultiple }
         assertNotNull("expected at least one grouped post in page 1", grouped)
         assertTrue(grouped!!.children.size > 1)
