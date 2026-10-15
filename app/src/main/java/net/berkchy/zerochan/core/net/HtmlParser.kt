@@ -88,9 +88,9 @@ object HtmlParser {
             val id = b.parent().attr("data-id").toLongOrNull() ?: return@forEach
             b.text().trim().toIntOrNull()?.let { fav[id] = it }
         }
-        // mobile markup carries the counter as a sibling <span> instead
+        // mobile markup carries the counter as a sibling <span> next to the fav link
         scoped.select("p.actions > span").forEach { span ->
-            val id = span.previous()?.attr("data-id")?.toLongOrNull() ?: return@forEach
+            val id = span.parent()?.selectFirst("a.fav")?.attr("data-id")?.toLongOrNull() ?: return@forEach
             span.text().trim().toIntOrNull()?.let { fav[id] = it }
         }
 
