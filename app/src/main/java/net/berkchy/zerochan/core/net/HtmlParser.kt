@@ -93,8 +93,8 @@ object HtmlParser {
     fun parseTypedTags(doc: Document): List<TypedTag> =
         doc.select("ul#tags > li").mapNotNull { li ->
             val type = li.attr("data-type").ifBlank {
-                li.attr("class").split(' ', '	', '
-')
+                li.attr("class")
+                    .split(' ')
                     .mapNotNull { it.takeIf { token -> token in TAG_TYPES } }
                     .firstOrNull()
             } ?: return@mapNotNull null
