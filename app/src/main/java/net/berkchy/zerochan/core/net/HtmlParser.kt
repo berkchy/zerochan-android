@@ -171,8 +171,8 @@ object HtmlParser {
 
         val meta = parsePostMeta(html)
         val format = string(ldJson, "encodingFormat").ifBlank {
-            full.substringAfterLast('.', "").substringBefore('?').uppercase()
-        }
+            full.substringAfterLast('.', "").substringBefore('?')
+        }.uppercase()
 
         return PostDetail(
             id = id,
