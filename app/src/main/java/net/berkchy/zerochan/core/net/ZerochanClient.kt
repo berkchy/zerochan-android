@@ -121,37 +121,60 @@ class ZerochanClient(
 
     // ---------------------------------------------------------------- details
 
+    /**
+     * `/{id}?json` is only served for some client profiles; for the rest zerochan answers with
+     * the rendered page, which carries the very same metadata inside `application/ld+json`.
+     * Whichever shape comes back is parsed, so a post never fails just because of that.
+     */
     suspend fun loadDetail(id: Long): PostDetail = withContext(Dispatchers.IO) {
         AppLog.d(TAG, "detail $id")
-        val body = fetch("$BASE/$id?json", attempts = 4) { JsonEnvelope.isJsonObject(it) }
-            ?: throw NetworkException("Unexpected response for post $id")
-        val dto = JsonEnvelope.decode<PostDetailDto>(body)
-            ?: throw NetworkException("Unexpected response for post $id")
 
-        val meta = fetch("$BASE/$id", attempts = 2, required = false)
-            ?.let { HtmlParser.parsePostMeta(it) }
-            ?: HtmlParser.PostMeta()
+        val json = fetch("$BASE/$id?json", attempts = 2) { JsonEnvelope.isJsonObject(it) }
+        if (json != null) {
+            JsonEnvelope.decode<PostDetailDto>(json)?.let { dto ->
+                val meta = fetch("$BASE/$id", attempts = 2, required = false)
+                    ?.let { HtmlParser.parsePostMeta(it) }
+                    ?: HtmlParser.PostMeta()
+                return@withContext PostDetail.from(dto).copy(
+                    favorites = meta.favorites,
+                    format = dto.full.substringAfterLast('.', "").uppercase()
+                        .ifBlank { meta.encodingFormat },
+                    uploadedBy = meta.uploadedBy,
+                    creator = meta.creator,
+                    publishedAt = meta.publishedAt,
+                    typedTags = meta.typedTags,
+                ).also {
+                    AppLog.d(
+                        TAG,
+                        "detail $id <- json ${it.width}x${it.height} ${it.format} " +
+                            "${it.sizeBytes}B favs=${it.favorites} tags=${it.typedTags.size}"
+                    )
+                }
+            }
+        }
 
-        val detail = PostDetail.from(dto).copy(
-            favorites = meta.favorites,
-            format = dto.full.substringAfterLast('.', "").uppercase().ifBlank { meta.encodingFormat },
-            uploadedBy = meta.uploadedBy,
-            creator = meta.creator,
-            publishedAt = meta.publishedAt,
-            typedTags = meta.typedTags,
-        )
-        AppLog.d(
+        // Fallback: scrape the page itself.
+        val page = fetch("$BASE/$id", attempts = 4) { HtmlParser.parsePostPage(it) != null }
+        val detail = page?.let { HtmlParser.parsePostPage(it) }
+        if (detail == null) throw NetworkException("Unexpected response for post $id")
+        AppLog.w(
             TAG,
-            "detail $id -> ${detail.width}x${detail.height} ${detail.format} " +
-                "${detail.sizeBytes}B favs=${detail.favorites} tags=${detail.typedTags.size}"
+            "detail $id <- html fallback ${detail.width}x${detail.height} " +
+                "${detail.format} ${detail.sizeBytes}B favs=${detail.favorites} " +
+                "tags=${detail.typedTags.size} uploader=${detail.uploadedBy}"
         )
         detail
     }
 
     suspend fun loadSimilar(id: Long): List<Post> = withContext(Dispatchers.IO) {
-        val html = fetch("$BASE/similar3?id=$id&ajax", attempts = 2, required = false)
+        val ajax = fetch("$BASE/similar3?id=$id&ajax", attempts = 2, required = false)
+        val parsed = ajax?.let { HtmlParser.parseSimilar(it) }.orEmpty()
+        if (parsed.isNotEmpty()) return@withContext parsed.also { AppLog.d(TAG, "similar $id -> ${it.size} (ajax)") }
+
+        // zerochan inlines the same list into the mobile post page
+        val html = fetch("$BASE/$id?mobile=1", attempts = 2, required = false)
             ?: return@withContext emptyList()
-        HtmlParser.parseSimilar(html).also { AppLog.d(TAG, "similar $id -> ${it.size}") }
+        HtmlParser.parseSimilar(html).also { AppLog.d(TAG, "similar $id -> ${it.size} (mobile page)") }
     }
 
     /**
@@ -161,7 +184,10 @@ class ZerochanClient(
     suspend fun loadChildren(id: Long): List<Long> = withContext(Dispatchers.IO) {
         val html = fetch("$BASE/$id?mobile=1", attempts = 2, required = false)
             ?: return@withContext listOf(id)
-        HtmlParser.parsePrefetchIds(html).ifEmpty { listOf(id) }
+        val prefetched = HtmlParser.parsePrefetchIds(html)
+        (listOf(id) + prefetched).distinct().also {
+            AppLog.d(TAG, "children $id -> ${it.size}")
+        }
     }
 
     // ---------------------------------------------------------------- search
@@ -249,6 +275,7 @@ class ZerochanClient(
         .url(url)
         .header("User-Agent", BotCheckInterceptor.USER_AGENT)
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+        .header("Cache-Control", "no-cache")
         .header("Accept-Language", "en-US,en;q=0.9")
         .header("Sec-Fetch-Dest", "document")
         .header("Sec-Fetch-Mode", "navigate")

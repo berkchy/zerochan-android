@@ -110,6 +110,29 @@ class ZerochanParsingTest {
     }
 
     @Test
+    fun `post page is parsed when the json variant is not served`() {
+        val detail = HtmlParser.parsePostPage(asset("post_page.html"))
+        assertNotNull("the desktop post page must yield a detail", detail)
+        assertEquals(4732249L, detail!!.id)
+        assertEquals(1341, detail.width)
+        assertEquals(2184, detail.height)
+        assertEquals("PNG", detail.format)
+        assertTrue("contentSize should parse", detail.sizeBytes in 2_400_000..2_500_000)
+        assertEquals(1, detail.favorites)
+        assertEquals("https://www.pixiv.net/artworks/147247560", detail.source)
+        assertTrue(detail.full.endsWith(".png"))
+        assertTrue(detail.large.endsWith(".jpg"))
+        assertEquals("RSAMV", detail.uploadedBy)
+        assertEquals("Lucifer (Ao No Exorcist)", detail.primaryTag)
+        assertTrue(detail.typedTags.any { it.type == "character" })
+    }
+
+    @Test
+    fun `a page without ld+json is rejected`() {
+        assertNull(HtmlParser.parsePostPage("<html><body>nope</body></html>"))
+    }
+
+    @Test
     fun `similar fragment yields posts with dimensions and favorites`() {
         val similar = HtmlParser.parseSimilar(asset("similar.html"))
         assertTrue("expected a non empty similar list", similar.isNotEmpty())

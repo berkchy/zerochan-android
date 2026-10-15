@@ -48,7 +48,11 @@ class ZerochanApp : Application(), ImageLoaderFactory {
         super.onCreate()
         AppLog.init(this)
         AppLog.section("start")
-        AppLog.d(TAG, "package=${packageName} version=${BuildConfig.VERSION_NAME} sdk=${android.os.Build.VERSION.SDK_INT}")
+        AppLog.d(
+            TAG,
+            "package=$packageName version=${BuildConfig.VERSION_NAME} sdk=${android.os.Build.VERSION.SDK_INT}",
+        )
+        AppLog.d(TAG, "user-agent=${BotCheckInterceptor.USER_AGENT}")
 
         val db = Room.databaseBuilder(this, ZerochanDatabase::class.java, "zerochan.db")
             .fallbackToDestructiveMigration()
