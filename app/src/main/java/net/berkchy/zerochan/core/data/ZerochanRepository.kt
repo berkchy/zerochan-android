@@ -25,8 +25,8 @@ class ZerochanRepository(
 
     suspend fun children(id: Long): List<Long> = client.loadChildren(id)
 
+    /** Resolves `/search?q=` onto the canonical tag path, e.g. "raiden" -> "Raiden". */
     suspend fun resolveSearch(query: String): String = client.resolveSearch(query)
-        ?: throw IllegalArgumentException("No results for \"$query\"")
 
     fun favorites(): Flow<List<FavoriteEntity>> = dao.favorites()
 

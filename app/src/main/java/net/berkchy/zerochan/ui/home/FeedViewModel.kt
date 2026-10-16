@@ -13,13 +13,6 @@ import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.net.Feed
 
-data class SearchState(
-    val query: String = "",
-    val loading: Boolean = false,
-    val resolvedPath: String? = null,
-    val error: String? = null,
-)
-
 /**
  * Explicit paging, mirroring the site: a page is 21 posts, the feed stops there and the buttons
  * at the bottom move to the next one. Past zerochan's page-500 limit the client switches to the
@@ -44,13 +37,11 @@ data class FeedState(
 class FeedViewModel(
     private val repository: ZerochanRepository,
     val initialPath: String? = null,
+    val title: String = initialPath?.replace("%20", " ").orEmpty(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FeedState())
     val state: StateFlow<FeedState> = _state.asStateFlow()
-
-    private val _search = MutableStateFlow(SearchState())
-    val search: StateFlow<SearchState> = _search.asStateFlow()
 
     private var job: Job? = null
     private var prefetchJob: Job? = null
@@ -140,32 +131,16 @@ class FeedViewModel(
         }
     }
 
-    fun search(query: String) {
-        if (query.isBlank()) return
-        viewModelScope.launch {
-            _search.value = _search.value.copy(query = query, loading = true, error = null)
-            runCatching { repository.resolveSearch(query) }
-                .onSuccess { _search.value = _search.value.copy(loading = false, resolvedPath = it) }
-                .onFailure {
-                    _search.value = _search.value.copy(
-                        loading = false,
-                        error = it.message ?: "No results for \"$query\"",
-                    )
-                }
-        }
-    }
-
-    fun clearSearch() {
-        _search.value = SearchState()
-    }
+    fun retry() = load(_state.value.page)
 
     class Factory(
         private val repository: ZerochanRepository,
         private val initialPath: String?,
+        private val title: String = initialPath?.replace("%20", " ").orEmpty(),
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            FeedViewModel(repository, initialPath) as T
+            FeedViewModel(repository, initialPath, title) as T
     }
 
     private companion object {

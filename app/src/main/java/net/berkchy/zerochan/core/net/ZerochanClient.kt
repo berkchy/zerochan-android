@@ -62,62 +62,57 @@ class ZerochanClient(
 
     // ---------------------------------------------------------------- listings
 
+    /**
+     * Listings are read straight from the rendered grid.
+     *
+     * zerochan serves `?json` only for a handful of requests per session and then quietly falls
+     * back to the html page, so the json variant is not something a browsable feed can rely on.
+     * The grid markup carries everything the list needs - id, preview, WxH, favourite count and
+     * the multi image grouping - in a single request, which also halves the request count.
+     */
     suspend fun loadListing(feed: Feed, page: Int, offsetId: Long?): List<Post> =
         withContext(Dispatchers.IO) {
-            val (jsonUrl, htmlUrl) = listingUrls(feed, page, offsetId)
-            AppLog.d(TAG, "listing ${feed.key} page=$page offset=$offsetId")
+            val url = listingUrl(feed, page, offsetId)
+            AppLog.d(TAG, "listing ${feed.key} page=$page offset=$offsetId -> $url")
 
-            if (feed == Feed.Popular) {
-                val html = fetch(htmlUrl, attempts = 4) { it.length > 500 }
-                    ?: throw NetworkException("zerochan is not reachable right now")
-                return@withContext HtmlParser.parseGrid(html).also {
-                    AppLog.d(TAG, "listing ${feed.key} page=$page -> ${it.size} posts")
-                }
-            }
+            val html = fetch(url, attempts = 3) { it.length > MIN_PAGE_BYTES }
+                ?: throw NetworkException("zerochan did not answer with a listing")
 
-            // Sequential on purpose: firing both at once is what triggers the throttle.
-            val jsonBody = fetch(jsonUrl, attempts = 4) { JsonEnvelope.hasItems(it) }
-            val dto = jsonBody?.let { JsonEnvelope.decode<ListingDto>(it) }
-            if (dto == null || dto.items.isEmpty()) {
-                throw NetworkException("Unexpected response from zerochan")
-            }
-
-            val enrichment = fetch(htmlUrl, attempts = 2, required = false)
-                ?.let { HtmlParser.parseListing(it) }
-                ?: HtmlParser.Enrichment()
-
-            val posts = dto.items.map { item ->
-                val post = item.toPost()
-                post.copy(
-                    favorites = enrichment.favoritesOf(post.id) ?: post.favorites,
-                    children = enrichment.childrenOf(post.id)?.let { kids ->
-                        if (kids.contains(post.id)) kids else listOf(post.id) + kids
-                    } ?: post.children,
+            // Members-only tags (Ecchi, ...) silently serve the personalised home feed instead.
+            if (HtmlParser.isHomeFeed(html)) {
+                AppLog.w(TAG, "${feed.key} answered with the home feed (restricted tag?)")
+                throw NetworkException(
+                    "This tag is restricted. Sign in on the website to see it.",
                 )
             }
-            AppLog.d(
-                TAG,
-                "listing ${feed.key} page=$page -> ${posts.size} posts, " +
-                    "favs=${enrichment.favorites.size}, groups=${enrichment.children.size}"
-            )
-            posts
+
+            HtmlParser.parseGrid(html).also { posts ->
+                AppLog.d(
+                    TAG,
+                    "listing ${feed.key} page=$page -> ${posts.size} posts, " +
+                        "multi=${posts.count { it.isMultiple }}",
+                )
+            }
         }
 
-    private fun listingUrls(feed: Feed, page: Int, offsetId: Long?): Pair<String, String> {
-        val params = buildList {
+    private fun listingUrl(feed: Feed, page: Int, offsetId: Long?): String {
+        val query = buildList {
             if (offsetId != null) add("o=$offsetId") else if (page > 1) add("p=$page")
             if (feed is Feed.Tag) add("s=id")
         }
-        val jsonQuery = (params + "json").joinToString("&")
-        val htmlQuery = params.joinToString("&")
         val path = when (feed) {
             Feed.Latest -> "/"
             Feed.Popular -> "/popular"
-            is Feed.Tag -> "/${feed.path}"
+            is Feed.Tag -> "/" + feed.path.toTagPath()
         }
-        val htmlUrl = if (htmlQuery.isBlank()) "$BASE$path" else "$BASE$path?$htmlQuery"
-        return "$BASE$path?$jsonQuery" to htmlUrl
+        return if (query.isEmpty()) "$BASE$path" else "$BASE$path?${query.joinToString("&")}"
     }
+
+    /** zerochan writes tag urls with `+` separators: `/Zenless+Zone+Zero`. */
+    private fun String.toTagPath(): String =
+        split(' ')
+            .filter { it.isNotBlank() }
+            .joinToString("+") { URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
 
     // ---------------------------------------------------------------- details
 
@@ -202,22 +197,29 @@ class ZerochanClient(
         val resolved = gate.run {
             runCatching { noRedirectClient.newCall(request).execute() }.getOrNull()?.use { response ->
                 val location = response.header("Location")
-                if (location != null) {
-                    AppLog.d(TAG, "search '$query' -> $location")
-                    (url.resolve(location))?.encodedPath
-                } else if (response.isSuccessful) {
-                    AppLog.d(TAG, "search '$query' -> ${url.encodedPath}")
-                    url.encodedPath
-                } else {
-                    AppLog.w(TAG, "search '$query' failed with ${response.code}")
-                    null
+                when {
+                    location != null -> {
+                        // /search?q=raiden -> /Raiden?q=raiden
+                        val path = (url.resolve(location))?.encodedPath
+                        AppLog.d(TAG, "search '$query' -> $location (${path.orEmpty()})")
+                        path?.takeIf { it.length > 1 }
+                    }
+                    response.isSuccessful && !url.encodedPath.endsWith("/search") -> {
+                        AppLog.d(TAG, "search '$query' -> ${url.encodedPath}")
+                        url.encodedPath
+                    }
+                    else -> {
+                        AppLog.w(TAG, "search '$query' -> no match (${response.code})")
+                        null
+                    }
                 }
             }
         }
-        resolved
-    }
 
-    // ---------------------------------------------------------------- plumbing
+        if (resolved == null) throw NoResultsException("No tag matches \"$query\"")
+        // the canonical path comes back with `+` separators, the route wants percent encoding
+        resolved.removePrefix("/").replace("+", " ")
+    }
 
     private suspend fun fetch(
         url: String,
@@ -287,6 +289,7 @@ class ZerochanClient(
     companion object {
         private const val TAG = "net"
         private const val BASE = "https://www.zerochan.net"
+        private const val MIN_PAGE_BYTES = 4_000
 
         fun createBaseClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
@@ -299,3 +302,5 @@ class ZerochanClient(
             java.net.URLEncoder.encode(this, "UTF-8").replace("+", "%20")
     }
 }
+
+class NoResultsException(message: String) : IOException(message)

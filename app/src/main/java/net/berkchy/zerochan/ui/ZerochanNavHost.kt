@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -32,7 +34,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -87,6 +92,24 @@ fun ZerochanNavHost(
     onOpenUrl: (String) -> Unit,
 ) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+    var searchError by remember { mutableStateOf<String?>(null) }
+    var searching by remember { mutableStateOf(false) }
+
+    // zerochan answers /search?q= with a 301 onto the canonical tag, so the redirect has to be
+    // resolved before there is anything to list.
+    val submitSearch: (String) -> Unit = { query ->
+        if (query.isBlank() || searching) return@let
+        scope.launch {
+            searching = true
+            searchError = null
+            runCatching { repository.resolveSearch(query) }
+                .onSuccess { path -> navController.navigate(Destination.tagRoute(encodeTag(path))) }
+                .onFailure { searchError = it.message ?: "No results for \"$query\"" }
+            searching = false
+        }
+    }
+
     val start = remember(startTab) {
         when (startTab) {
             "library" -> Destination.LIBRARY
@@ -153,7 +176,14 @@ fun ZerochanNavHost(
                     onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
                     onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
                     topContent = {
-                        SearchField(onSubmit = { navController.navigate(Destination.tagRoute(encodeTag(it))) })
+                        Column {
+                            SearchField(
+                                onSubmit = submitSearch,
+                                busy = searching,
+                                error = searchError,
+                                onDismissError = { searchError = null },
+                            )
+                        }
                     },
                     modifier = safePadding,
                 )
@@ -191,6 +221,7 @@ fun ZerochanNavHost(
                     key = "feed-$path",
                     factory = FeedViewModel.Factory(repository, path),
                 )
+                LaunchedEffect(path) { searchError = null }
                 FeedScreen(
                     viewModel = vm,
                     onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
@@ -248,13 +279,18 @@ private fun SearchField(
     initial: String = "",
     onSubmit: (String) -> Unit,
     modifier: Modifier = Modifier,
+    busy: Boolean = false,
+    error: String? = null,
+    onDismissError: () -> Unit = {},
 ) {
     var text by remember { mutableStateOf(initial) }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(initial) { if (initial.isNotBlank()) text = initial }
+    LaunchedEffect(error) { if (error != null) keyboard?.hide() }
 
+    Column(modifier) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
         OutlinedTextField(
             value = text,
@@ -274,6 +310,7 @@ private fun SearchField(
                 capitalization = KeyboardCapitalization.Words,
                 imeAction = ImeAction.Search,
             ),
+            enabled = !busy,
             keyboardActions = KeyboardActions(
                 onSearch = {
                     if (text.isNotBlank()) {
@@ -284,6 +321,20 @@ private fun SearchField(
                 },
             ),
         )
+    }
+    if (busy) {
+        LinearProgressIndicator(Modifier.fillMaxWidth())
+    } else if (error != null) {
+        Text(
+            text = error,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onDismissError)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+    }
     }
 }
 

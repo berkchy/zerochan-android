@@ -104,6 +104,21 @@ object HtmlParser {
      * (`<li class="character primary">`) while the mobile page uses `data-type`. Both are
      * accepted so the detail screen is populated whichever page answered.
      */
+    /**
+     * Members-only tags (Ecchi and friends) do not 404 for anonymous visitors, they quietly
+     * answer with the personalised "recommended for you" home feed. Detect it so the app can
+     * say something useful instead of rendering 19 unrelated posts.
+     */
+    fun isHomeFeed(html: String): Boolean {
+        if (html.length > 60_000) return false
+        val title = Regex("<title>([^<]*)</title>", RegexOption.IGNORE_CASE)
+            .find(html)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+        if (title.equals("Zerochan HQ Anime Imageboard", ignoreCase = true)) return true
+        if (!html.contains("recommended for you", ignoreCase = true)) return false
+        return Regex("<h1[^>]*>[\s\S]{0,120}?</h1>", RegexOption.IGNORE_CASE)
+            .find(html)?.value?.contains("recommended", ignoreCase = true) == true
+    }
+
     fun parseTypedTags(doc: Document): List<TypedTag> =
         doc.select("ul#tags > li").mapNotNull { li ->
             val type = li.attr("data-type").ifBlank {

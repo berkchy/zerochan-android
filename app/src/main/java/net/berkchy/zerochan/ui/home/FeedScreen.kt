@@ -59,8 +59,7 @@ fun FeedScreen(
     topContent: (@Composable () -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val search by viewModel.search.collectAsStateWithLifecycle()
-    val isLatest = viewModel.initialPath == null && search.resolvedPath == null
+    val isLatest = viewModel.initialPath == null
     val listState = rememberLazyGridState()
 
     // A new page always starts at the top of the grid.
@@ -82,11 +81,11 @@ fun FeedScreen(
                 state.error != null && state.posts.isEmpty() ->
                     ErrorState(
                         message = state.error ?: "Could not reach zerochan",
-                        onRetry = { viewModel.load(state.page) },
+                        onRetry = viewModel::retry,
                     )
 
                 state.posts.isEmpty() ->
-                    EmptyState(search.error ?: "Nothing here yet")
+                    EmptyState(state.error ?: "Nothing on this page")
 
                 else -> PostGrid(
                     posts = state.posts,
@@ -94,7 +93,7 @@ fun FeedScreen(
                     listState = listState,
                     header = {
                         FeedHeader(
-                            title = feedTitle(viewModel, search),
+                            title = viewModel.title.ifBlank { "Latest posts" },
                             icon = if (isLatest) Icons.Rounded.History else Icons.Rounded.Search,
                             showTrending = isLatest,
                             onTagClick = onTagClick,
@@ -111,17 +110,6 @@ fun FeedScreen(
                 )
             }
         }
-    }
-}
-
-private fun feedTitle(viewModel: FeedViewModel, search: SearchState): String {
-    val resolved = search.resolvedPath
-    return when {
-        !search.query.isBlank() -> search.query
-        !resolved.isNullOrBlank() -> resolved.replace("%20", " ")
-        viewModel.initialPath == null -> "Latest posts"
-        viewModel.initialPath.equals("popular", ignoreCase = true) -> "Popular today"
-        else -> viewModel.initialPath.replace("%20", " ")
     }
 }
 
