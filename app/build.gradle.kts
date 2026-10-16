@@ -20,11 +20,8 @@ android {
 
         // Supplied by CI / local.properties for the "Sign in with Google" button. Empty means
         // the button explains that it is not configured yet instead of failing silently.
-        buildConfigField(
-            "String",
-            "GOOGLE_CLIENT_ID",
-            ""${project.findProperty("googleClientId") ?: ""}\"",
-        )
+        val googleClientId = (project.findProperty("googleClientId") as String?) ?: ""
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
     }
 
     signingConfigs {
