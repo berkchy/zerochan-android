@@ -238,6 +238,8 @@ object HtmlParser {
             .mapNotNull { it.groupValues[1].toLongOrNull() }
             .toList()
 
+    private val HEADING = Regex("<h1[^>]*>.{0,120}?</h1>", RegexOption.DOT_MATCHES_ALL)
+
     private val LD_JSON = Regex(
         "<script type=\"application/ld\\+json\">(.*?)</script>",
         setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE),

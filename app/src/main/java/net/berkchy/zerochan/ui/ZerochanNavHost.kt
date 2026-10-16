@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -99,7 +100,7 @@ fun ZerochanNavHost(
     // zerochan answers /search?q= with a 301 onto the canonical tag, so the redirect has to be
     // resolved before there is anything to list.
     val submitSearch: (String) -> Unit = { query ->
-        if (query.isBlank() || searching) return@let
+        if (query.isBlank() || searching) return@Unit
         scope.launch {
             searching = true
             searchError = null
