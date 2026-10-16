@@ -131,7 +131,11 @@ fun ZerochanNavHost(
     // zerochan answers /search?q= with a 301 onto the canonical tag, so the redirect has to be
     // resolved before there is anything to list.
     val submitSearch: (String) -> Unit = fun(query: String) {
-        if (query.isBlank() || searching) return
+        if (query.isBlank()) {
+            searchError = "Type something to search for"
+            return
+        }
+        if (searching) return
         scope.launch {
             searching = true
             searchError = null
@@ -311,6 +315,10 @@ fun ZerochanNavHost(
                 arguments = listOf(navArgument(ARG_FEED) { type = NavType.StringType }),
             ) { entry ->
                 val path = entry.arguments?.getString(ARG_FEED).orEmpty()
+                if (path.isBlank()) {
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                    return@composable
+                }
                 val vm: FeedViewModel = viewModel(
                     key = "feed-$path",
                     factory = FeedViewModel.Factory(repository, path),
@@ -405,6 +413,7 @@ private fun SearchField(
                 imeAction = ImeAction.Search,
             ),
             enabled = !busy,
+            readOnly = false,
             keyboardActions = KeyboardActions(
                 onSearch = {
                     if (text.isNotBlank()) {

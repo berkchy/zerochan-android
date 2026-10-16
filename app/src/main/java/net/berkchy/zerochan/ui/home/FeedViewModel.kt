@@ -51,7 +51,7 @@ class FeedViewModel(
     private val prefetched = HashMap<Int, List<Post>>()
 
     private val feed: Feed
-        get() = initialPath?.let { path ->
+        get() = initialPath?.trim()?.takeIf { it.isNotEmpty() }?.let { path ->
             if (path.equals("popular", ignoreCase = true)) Feed.Popular else Feed.Tag(path)
         } ?: Feed.Latest
 

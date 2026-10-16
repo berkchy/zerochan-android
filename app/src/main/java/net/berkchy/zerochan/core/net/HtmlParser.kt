@@ -105,15 +105,14 @@ object HtmlParser {
      * accepted so the detail screen is populated whichever page answered.
      */
     /**
-     * Members-only tags (Ecchi and friends) do not 404 for anonymous visitors, they quietly
-     * answer with the personalised "recommended for you" home feed. Detect it so the app can
-     * say something useful instead of rendering 19 unrelated posts.
+     * True when the response is the personalised landing page rather than a listing.
+     *
+     * Both the real homepage and the answer to a members-only tag carry the same
+     * "recommended for you" heading, so this only says *which* page came back - deciding that
+     * the tag is restricted is the caller's job, since for `/` this page is exactly right.
      */
     fun isHomeFeed(html: String): Boolean {
-        if (html.length > 60_000) return false
-        val title = Regex("<title>([^<]*)</title>", RegexOption.IGNORE_CASE)
-            .find(html)?.groupValues?.getOrNull(1)?.trim().orEmpty()
-        if (title.equals("Zerochan HQ Anime Imageboard", ignoreCase = true)) return true
+        if (html.length > 80_000) return false
         if (!html.contains("recommended for you", ignoreCase = true)) return false
         return HEADING.find(html)?.value?.contains("recommended", ignoreCase = true) == true
     }

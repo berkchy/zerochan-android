@@ -93,25 +93,34 @@ class ZerochanClient(
      */
     suspend fun loadListing(feed: Feed, page: Int, offsetId: Long?): List<Post> =
         withContext(Dispatchers.IO) {
-            val url = listingUrl(feed, page, offsetId)
-            AppLog.d(TAG, "listing ${feed.key} page=$page offset=$offsetId -> $url")
+            // A blank tag path is the empty search box; fall back to the latest feed instead of
+            // requesting "/" with a tag filter and calling the answer "restricted".
+            val target = if (feed is Feed.Tag && feed.path.isBlank()) Feed.Latest else feed
+            val url = listingUrl(target, page, offsetId)
+            AppLog.d(TAG, "listing ${target.key} page=$page offset=$offsetId -> $url")
 
             val html = fetch(url, attempts = 3) { it.length > MIN_PAGE_BYTES }
                 ?: throw NetworkException("zerochan did not answer with a listing")
 
-            // Members-only tags (Ecchi, ...) silently serve the personalised home feed instead.
-            if (HtmlParser.isHomeFeed(html)) {
-                AppLog.w(TAG, "${feed.key} answered with the home feed (restricted tag?)")
+            // Members-only tags (Ecchi, ...) silently serve the personalised landing page
+            // instead of a listing. Only meaningful for a tag: for "/" that page is the feed.
+            if (target is Feed.Tag && HtmlParser.isHomeFeed(html)) {
+                AppLog.w(TAG, "${target.key} answered with the landing page (restricted tag)")
                 throw NetworkException(
-                    "This tag is restricted. Sign in on the website to see it.",
+                    "\"${target.path.replace("%20", " ")}\" is a members-only tag. Sign in, or " +
+                        "import your session from Settings, to open it.",
                 )
             }
 
-            HtmlParser.parseGrid(html).also { posts ->
+            val posts = HtmlParser.parseGrid(html)
+            if (posts.isEmpty() && target !is Feed.Tag) {
+                AppLog.w(TAG, "${target.key} page=$page parsed no posts from ${html.length} bytes")
+            }
+            posts.also {
                 AppLog.d(
                     TAG,
-                    "listing ${feed.key} page=$page -> ${posts.size} posts, " +
-                        "multi=${posts.count { it.isMultiple }}",
+                    "listing ${target.key} page=$page -> ${it.size} posts, " +
+                        "multi=${it.count { post -> post.isMultiple }}",
                 )
             }
         }
