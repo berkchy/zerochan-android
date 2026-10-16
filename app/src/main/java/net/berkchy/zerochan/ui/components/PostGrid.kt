@@ -30,22 +30,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.paging.LoadState
-import androidx.paging.compose.LazyPagingItems
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import net.berkchy.zerochan.core.model.Post
 
 /**
- * The zerochan masonry grid. Preview thumbnails are small so the grid fills up quickly;
- * the favourite counter sits on the image and grouped posts show how many pictures they hold.
+ * The zerochan grid. Uniform square cells with centre cropped previews, plus a header and a
+ * footer supplied by the caller (page number and the page navigation buttons).
  */
 @Composable
 fun PostGrid(
-    posts: LazyPagingItems<Post>,
+    posts: List<Post>,
     onPostClick: (Post) -> Unit,
     modifier: Modifier = Modifier,
     columns: GridCells = GridCells.Adaptive(minSize = 108.dp),
     listState: LazyGridState = rememberLazyGridState(),
-    header: (@Composable () -> Unit)? = null,
+    header: @Composable () -> Unit,
+    footer: @Composable () -> Unit,
 ) {
     LazyVerticalGrid(
         columns = columns,
@@ -55,25 +57,16 @@ fun PostGrid(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        if (header != null) {
-            item(key = "__header__", span = { GridItemSpan(maxLineSpan) }) { header() }
-        }
+        item(key = "__header__", span = { GridItemSpan(maxLineSpan) }) { header() }
 
         items(
-            count = posts.itemCount,
-            key = { index -> posts.peek(index)?.id ?: index },
+            count = posts.size,
+            key = { index -> posts[index].id },
         ) { index ->
-            val post = posts[index]
-            if (post == null) {
-                ShimmerBox(Modifier.aspectRatio(1f))
-            } else {
-                PostGridItem(post = post, onClick = { onPostClick(post) })
-            }
+            PostGridItem(post = posts[index], onClick = { onPostClick(posts[index]) })
         }
 
-        if (posts.loadState.append is LoadState.Loading) {
-            item(key = "__footer__", span = { GridItemSpan(maxLineSpan) }) { LoadingFooter() }
-        }
+        item(key = "__footer__", span = { GridItemSpan(maxLineSpan) }) { footer() }
     }
 }
 
@@ -90,16 +83,17 @@ fun PostGridItem(
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick),
     ) {
-        // Uniform square cells: the grid stays perfectly aligned no matter how the artwork is
-        // proportioned, and the preview is centre cropped.
+        // Uniform square cells: the grid stays aligned no matter how the artwork is proportioned.
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f)
         ) {
-            GridImage(
-                url = post.thumbnail,
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(post.thumbnail)
+                    .crossfade(150)
+                    .build(),
                 contentDescription = post.tag.ifBlank { "Post ${post.id}" },
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
 
@@ -140,5 +134,3 @@ fun PostGridItem(
         }
     }
 }
-
-private const val PREFETCH_DISTANCE = 12

@@ -1,8 +1,5 @@
 package net.berkchy.zerochan.core.data
 
-import androidx.paging.PagingConfig
-import androidx.paging.Pager
-import androidx.paging.PagingData
 import kotlinx.coroutines.flow.Flow
 import net.berkchy.zerochan.core.download.DownloadCenter
 import net.berkchy.zerochan.core.download.QueueSnapshot
@@ -18,10 +15,9 @@ class ZerochanRepository(
     private val dao: LibraryDao,
     private val settings: SettingsStore,
 ) {
-    fun posts(feed: Feed): Flow<PagingData<Post>> = Pager(
-        config = PagingConfig(pageSize = PAGE_SIZE, initialLoadSize = PAGE_SIZE * 2, enablePlaceholders = false),
-        pagingSourceFactory = { PostPagingSource(client, feed) },
-    ).flow
+    /** One listing page; [offsetId] continues past zerochan's page-500 limit. */
+    suspend fun loadPage(feed: Feed, page: Int, offsetId: Long?): List<Post> =
+        client.loadListing(feed, page, offsetId)
 
     suspend fun detail(id: Long): PostDetail = client.loadDetail(id)
 
@@ -71,7 +67,5 @@ class ZerochanRepository(
 
     suspend fun clearFinishedDownloads(): Int = dao.clearFinished()
 
-    companion object {
-        const val PAGE_SIZE = 48
-    }
+
 }

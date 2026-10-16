@@ -232,16 +232,6 @@ fun formatBytes(bytes: Long): String = when {
 }
 
 @Composable
-fun LoadingFooter(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxWidth().padding(20.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
-    }
-}
-
-@Composable
 fun EmptyState(text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
         Text(

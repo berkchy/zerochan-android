@@ -51,7 +51,7 @@ class DownloadService : android.app.Service() {
             app.downloadCenter.pump()
             app.downloadCenter.startTicker(app.serviceScope)
         }
-        return android.app.app.Service.START_STICKY
+        return android.app.Service.START_STICKY
     }
 
     override fun onDestroy() {
@@ -232,5 +232,3 @@ class DownloadService : android.app.Service() {
         }
     }
 }
-
-private fun kotlinx.coroutines.flow.Flow<T>.cancel() = (this as kotlinx.coroutines.CoroutineScope).let { }

@@ -7,14 +7,14 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -122,7 +122,7 @@ class DownloadCenter(
      * the pump when it finishes, so the queue keeps draining while the process lives.
      */
     private suspend fun drain() {
-        val prefs = kotlinx.coroutines.flow.first(settings.settings)
+        val prefs = settings.settings.first()
         val limit = prefs.maxConcurrentDownloads
 
         if (prefs.wifiOnly && !onWifi()) {
