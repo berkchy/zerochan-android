@@ -117,7 +117,8 @@ class ZerochanParsingTest {
         assertEquals(1341, detail.width)
         assertEquals(2184, detail.height)
         assertEquals("PNG", detail.format)
-        assertTrue("contentSize should parse", detail.sizeBytes in 2_400_000..2_500_000)
+        // "2454kB" -> the exact same byte count the json variant reports
+        assertEquals(2512896L, detail.sizeBytes)
         assertEquals(1, detail.favorites)
         assertEquals("https://www.pixiv.net/artworks/147247560", detail.source)
         assertTrue(detail.full.endsWith(".png"))
