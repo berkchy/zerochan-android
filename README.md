@@ -85,6 +85,40 @@ Five densities (mdpi to xxxhdpi), saved as WebP to keep the resource folder arou
    [CHANGELOG.md](CHANGELOG.md) plus a small "This build" table (version, commit, date, run
    link, signing status).
 
+### Accounts
+
+| Path | State |
+| --- | --- |
+| Sign in with username / password | Works. `POST /login`, no captcha on this endpoint. |
+| Register | Works. reCAPTCHA v2 is rendered in-app; the user ticks it and the `g-recaptcha-response` token is posted with the form. |
+| Import session | Works. Paste the `PHPSESSID` cookie from a signed-in browser session. |
+| Sign in with Google | Needs one action from the site owner - see below. |
+
+Nothing but the session cookie is stored. The password is never written anywhere, and signing
+out drops `PHPSESSID` / `guest_id` while keeping the bot-check cookie.
+
+zerochan signs users in with Google Identity Services against **its own** OAuth client
+(`280853676974-…apps.googleusercontent.com`). A third party Android app cannot reuse that
+client, so Google sign in is implemented as the standard OAuth 2.0 Authorization Code flow with
+PKCE (Custom Tab → `net.berkchy.zerochan://oauth2redirect` → token exchange) and waits on
+`GOOGLE_CLIENT_ID`. For the flow to complete, zerochan has to list this app as an authorized
+client in their Google Cloud project:
+
+```
+Package name : net.berkchy.zerochan
+Redirect URI : net.berkchy.zerochan://oauth2redirect
+```
+
+Set the client id in `gradle.properties`:
+
+```properties
+googleClientId=000000000000-xxxxxxxxxxxx.apps.googleusercontent.com
+```
+
+Until then the button explains that it is not configured rather than failing silently. In the
+meantime **Settings → Account → Import** takes a session straight from the website, which needs
+nobody's cooperation.
+
 ### Signing
 
 Release signing is opt-in and driven by repository secrets:
