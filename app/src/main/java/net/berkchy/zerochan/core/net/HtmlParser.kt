@@ -115,8 +115,7 @@ object HtmlParser {
             .find(html)?.groupValues?.getOrNull(1)?.trim().orEmpty()
         if (title.equals("Zerochan HQ Anime Imageboard", ignoreCase = true)) return true
         if (!html.contains("recommended for you", ignoreCase = true)) return false
-        return Regex("<h1[^>]*>[\s\S]{0,120}?</h1>", RegexOption.IGNORE_CASE)
-            .find(html)?.value?.contains("recommended", ignoreCase = true) == true
+        return HEADING.find(html)?.value?.contains("recommended", ignoreCase = true) == true
     }
 
     fun parseTypedTags(doc: Document): List<TypedTag> =
