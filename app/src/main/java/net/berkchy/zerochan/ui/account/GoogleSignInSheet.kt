@@ -363,36 +363,49 @@ private fun WebSettings.configure(userAgent: String) {
     setSupportMultipleWindows(false)
     mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
-    // `setUserAgentString` only rewrites the `User-Agent` header. Chrome also sends User-Agent
-    // Client Hints (`Sec-CH-UA`), and a WebView's version brands itself `"Google WebView"` in
-    // there - which is the signal Google's sign in actually reads now, since the plain header
-    // stopped being trusted years ago. This is the only supported way to overwrite it.
+    // `setUserAgentString` only rewrites the `User-Agent` header, and with an overridden string
+    // Chrome falls back to low-entropy hints alone. Chrome also sends User-Agent Client Hints
+    // (`Sec-CH-UA`, `Sec-CH-UA-Full-Version-List`, ...), and a WebView brands itself
+    // `"Google WebView"` there - which is the signal Google's sign in reads now, since the plain
+    // header stopped being trusted years ago. This is the only supported way to overwrite it.
     if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
         runCatching {
             WebSettingsCompat.setUserAgentMetadata(
                 this,
                 UserAgentMetadata.Builder()
-                    .setBrands(CHROME_BRANDS)
+                    .setBrandVersionList(CHROME_BRANDS.map { (brand, version) -> chromeBrand(brand, version) })
                     .setFullVersion(CHROME_VERSION)
                     .setPlatform("Windows")
-                    .setPlatformVersion("10.0.0")
+                    .setPlatformVersion("15.0.0")
                     .setArchitecture("x86")
-                    .setModel("PC")
-                    .setWow64(false)
+                    .setModel("")
                     .setMobile(false)
+                    .setBitness(64)
+                    .setWow64(false)
                     .build(),
             )
-        }.onFailure { AppLog.w(TAG, "could not override the user agent metadata: ${it.message}") }
+        }.onSuccess {
+            AppLog.d(TAG, "user agent metadata overridden with chrome's brands")
+        }.onFailure {
+            AppLog.w(TAG, "could not override the user agent metadata: ${it.message}")
+        }
     }
 }
 
+private fun chromeBrand(name: String, version: String): UserAgentMetadata.BrandVersion =
+    UserAgentMetadata.BrandVersion.Builder()
+        .setBrand(name)
+        .setMajorVersion(version.substringBefore('.'))
+        .setFullVersion(version)
+        .build()
+
 /** What a desktop Chrome of the agent above advertises in `Sec-CH-UA`. */
 private val CHROME_BRANDS = listOf(
-    "Chromium" to "124",
-    "Google Chrome" to "124",
-    "Not-A.Brand" to "99",
+    "Chromium" to CHROME_VERSION,
+    "Google Chrome" to CHROME_VERSION,
+    "Not-A.Brand" to "99.0.0.0",
 )
-private const val CHROME_VERSION = "124.0.0.0"
+private const val CHROME_VERSION = "124.0.6367.179"
 
 /** The rendered text of the current page, for reading the text of an error response. */
 private fun WebView.pageText(onReady: (String) -> Unit) {
