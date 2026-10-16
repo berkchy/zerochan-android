@@ -30,12 +30,14 @@ class GoogleOAuth(
     private val pending = Pending()
 
     fun authorizeUrl(state: String, nonce: String): String {
+        val verifier = pending.verifier.orEmpty()
+        val challenge = if (pending.challenge.isNotBlank()) pending.challenge else sha256Base64Url(verifier)
         val params = listOf(
             "client_id" to clientId,
             "redirect_uri" to redirectUri,
             "response_type" to "code",
             "scope" to "openid email profile",
-            "code_challenge" to pending.challenge,
+            "code_challenge" to challenge,
             "code_challenge_method" to "S256",
             "state" to state,
             "nonce" to nonce,
@@ -44,8 +46,9 @@ class GoogleOAuth(
     }
 
     fun begin(): Pair<String, String> {
-        pending.verifier = random()
-        pending.challenge = sha256Base64Url(pending.verifier)
+        val verifier = random()
+        pending.verifier = verifier
+        pending.challenge = sha256Base64Url(verifier)
         val state = random()
         val nonce = random()
         return state to nonce
