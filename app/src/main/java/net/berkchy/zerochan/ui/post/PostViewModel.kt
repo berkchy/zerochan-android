@@ -180,23 +180,30 @@ class PostViewModel(
         }
     }
 
+    /** Queues the file; progress lives in the notification and the Library downloads tab. */
     fun download() {
         val detail = _state.value.detail ?: return
-        detailJob?.cancel()
+        val item = _state.value.current
         viewModelScope.launch {
-            repository.startDownload(detail) { progress ->
-                _state.value = _state.value.copy(downloadState = progress)
-            }
-            when (val result = _state.value.downloadState) {
-                is DownloadState.Done -> _state.value = _state.value.copy(toast = "Saved ${result.file.name}")
-                is DownloadState.Failed -> _state.value = _state.value.copy(toast = result.reason)
-                else -> Unit
+            runCatching {
+                repository.queueDownload(
+                    detail = detail,
+                    thumbnail = item?.thumbnail.orEmpty(),
+                    tag = item?.tag.orEmpty(),
+                )
+            }.onSuccess {
+                _state.value = _state.value.copy(
+                    downloadState = DownloadState.Queued,
+                    toast = "Queued · see Library > Downloads",
+                )
+            }.onFailure {
+                _state.value = _state.value.copy(toast = it.message ?: "Could not queue the download")
             }
         }
     }
 
     fun consumeToast() {
-        _state.value = _state.value.copy(toast = null, downloadState = null)
+        _state.value = _state.value.copy(toast = null)
     }
 
     fun retry() = load(_state.value.currentId.takeIf { it != 0L } ?: postId)

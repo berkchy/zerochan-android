@@ -1,12 +1,12 @@
 package net.berkchy.zerochan.core.data
 
-import androidx.room.Room
-import androidx.paging.Pager
 import androidx.paging.PagingConfig
+import androidx.paging.Pager
 import androidx.paging.PagingData
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import net.berkchy.zerochan.core.download.ImageDownloader
+import net.berkchy.zerochan.core.download.DownloadCenter
+import net.berkchy.zerochan.core.download.QueueSnapshot
+import net.berkchy.zerochan.core.download.SettingsStore
 import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.net.Feed
@@ -14,8 +14,9 @@ import net.berkchy.zerochan.core.net.ZerochanClient
 
 class ZerochanRepository(
     private val client: ZerochanClient,
-    private val downloader: ImageDownloader,
+    private val downloader: DownloadCenter,
     private val dao: LibraryDao,
+    private val settings: SettingsStore,
 ) {
     fun posts(feed: Feed): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, initialLoadSize = PAGE_SIZE * 2, enablePlaceholders = false),
@@ -48,18 +49,29 @@ class ZerochanRepository(
         )
     }
 
+    // ---------------------------------------------------------------- downloads
+
     fun downloads(): Flow<List<DownloadEntity>> = dao.downloads()
 
-    suspend fun startDownload(detail: PostDetail, onProgress: (net.berkchy.zerochan.core.download.DownloadState) -> Unit) {
-        downloader.download(detail, onProgress)
-    }
+    fun queue(): Flow<QueueSnapshot> = downloader.state
+
+    val settingsFlow = settings.settings
+
+    suspend fun setMaxConcurrent(value: Int) = settings.setConcurrency(value)
+    suspend fun setWifiOnly(value: Boolean) = settings.setWifiOnly(value)
+    suspend fun setAutoStart(value: Boolean) = settings.setAutoStart(value)
+    suspend fun setNotifyOnComplete(value: Boolean) = settings.setNotifyOnComplete(value)
+
+    suspend fun queueDownload(detail: PostDetail, thumbnail: String, tag: String) =
+        downloader.enqueue(detail, thumbnail, tag)
+
+    suspend fun cancelDownload(id: Long) = downloader.cancel(id)
+    suspend fun retryDownload(id: Long) = downloader.retry(id)
+    suspend fun removeDownload(id: Long) = downloader.remove(id)
+
+    suspend fun clearFinishedDownloads(): Int = dao.clearFinished()
 
     companion object {
         const val PAGE_SIZE = 48
-
-        fun buildDatabase(context: android.content.Context): ZerochanDatabase =
-            Room.databaseBuilder(context, ZerochanDatabase::class.java, "zerochan.db")
-                .fallbackToDestructiveMigration()
-                .build()
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,8 +30,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,7 @@ import net.berkchy.zerochan.ui.home.FeedScreen
 import net.berkchy.zerochan.ui.home.FeedViewModel
 import net.berkchy.zerochan.ui.post.PostScreen
 import net.berkchy.zerochan.ui.post.PostViewModel
+import net.berkchy.zerochan.ui.settings.SettingsScreen
 
 private const val ARG_FEED = "feed"
 private const val ARG_POST = "postId"
@@ -65,6 +67,7 @@ object Destination {
     const val HOME = "home"
     const val POPULAR = "feed/popular"
     const val LIBRARY = "library"
+    const val SETTINGS = "settings"
     const val POST = "post/{$ARG_POST}?{$ARG_CHILDREN}"
     const val TAG = "feed/{$ARG_FEED}"
 
@@ -77,13 +80,26 @@ object Destination {
 @Composable
 fun ZerochanNavHost(
     repository: ZerochanRepository,
+    startTab: String? = null,
     onShare: (String, String) -> Unit,
     onOpenUrl: (String) -> Unit,
 ) {
     val navController = rememberNavController()
+    val start = remember(startTab) {
+        when (startTab) {
+            "library" -> Destination.LIBRARY
+            "settings" -> Destination.SETTINGS
+            else -> Destination.HOME
+        }
+    }
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    val showBars = currentRoute in setOf(Destination.HOME, Destination.POPULAR, Destination.LIBRARY)
+    val showBars = currentRoute in setOf(
+        Destination.HOME,
+        Destination.POPULAR,
+        Destination.LIBRARY,
+        Destination.SETTINGS,
+    )
 
     Scaffold(
         bottomBar = {
@@ -107,6 +123,12 @@ fun ZerochanNavHost(
                         icon = { Icon(Icons.Rounded.CollectionsBookmark, contentDescription = null) },
                         label = { Text("Library") },
                     )
+                    NavigationBarItem(
+                        selected = currentRoute == Destination.SETTINGS,
+                        onClick = { navController.navigateTop(Destination.SETTINGS) },
+                        icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
+                        label = { Text("Settings") },
+                    )
                 }
             }
         },
@@ -119,7 +141,7 @@ fun ZerochanNavHost(
 
         NavHost(
             navController = navController,
-            startDestination = Destination.HOME,
+            startDestination = start,
             modifier = Modifier.fillMaxSize(),
         ) {
             composable(Destination.HOME) {
@@ -152,6 +174,11 @@ fun ZerochanNavHost(
                     onFavoriteClick = { navController.navigate(Destination.postRoute(it, emptyList())) },
                     modifier = safePadding,
                 )
+            }
+
+            composable(Destination.SETTINGS) {
+                val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(repository))
+                SettingsScreen(viewModel, Modifier.padding(bottom = padding.calculateBottomPadding()))
             }
 
             composable(

@@ -12,6 +12,8 @@ import net.berkchy.zerochan.ui.theme.ZerochanTheme
 
 class MainActivity : ComponentActivity() {
 
+    private var openLibrary = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         enableEdgeToEdge()
@@ -19,15 +21,28 @@ class MainActivity : ComponentActivity() {
 
         val repository = (application as ZerochanApp).repository
 
+        handleIntent(intent)
+
         setContent {
             ZerochanTheme {
                 ZerochanNavHost(
                     repository = repository,
+                    startTab = if (openLibrary) "library" else null,
                     onShare = ::share,
                     onOpenUrl = ::openUrl,
                 )
             }
         }
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getStringExtra(EXTRA_OPEN_TAB) == "library") openLibrary = true
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
     }
 
     private fun share(url: String, text: String) {
@@ -41,5 +56,9 @@ class MainActivity : ComponentActivity() {
 
     private fun openUrl(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_TAB = "open_tab"
     }
 }

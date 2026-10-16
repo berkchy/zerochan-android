@@ -47,7 +47,7 @@ fun DiagnosticsSection(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val file = remember(context) { AppLog.logFile(context) }
 
-    Column(modifier.fillMaxWidth().padding(16.dp)) {
+    Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {

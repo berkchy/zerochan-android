@@ -140,14 +140,14 @@ fun PostScreen(
             if (state.detail != null) {
                 ExtendedFloatingActionButton(
                     onClick = onDownload,
+                    expanded = state.downloadState != DownloadState.Queued,
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     icon = { Icon(Icons.Rounded.Download, contentDescription = null) },
                     text = {
                         Text(
-                            when (val s = state.downloadState) {
-                                is DownloadState.Running -> "Downloading ${s.percent}%"
-                                is DownloadState.Done -> "Saved"
+                            when (state.downloadState) {
+                                DownloadState.Queued -> "Queued"
                                 else -> "Download"
                             }
                         )
