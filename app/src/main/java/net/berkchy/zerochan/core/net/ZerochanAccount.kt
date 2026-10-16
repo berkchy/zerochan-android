@@ -102,10 +102,10 @@ class ZerochanAccount(
 
     /** Re-checks the stored session, e.g. after a cold start. */
     suspend fun refresh(): Account? = withContext(Dispatchers.IO) {
-        val stored = storedUsername ?: return@withContext null
+        val stored = storedUsername?.takeIf { it.isNotBlank() } ?: return@withContext null
         if (!client.hasSession()) return@withContext null
         val page = runCatching { client.page("${ZerochanApi.BASE}/") }.getOrNull()
-            ?: return@withContext stored
+            ?: return@withContext Account(stored)
         when (client.readAccount(page)) {
             is AccountCheck.SignedIn -> {
                 prefs.edit().putString(KEY_USERNAME, stored).apply()

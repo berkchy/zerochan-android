@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.berkchy.zerochan.core.net.Account
 import net.berkchy.zerochan.ui.account.AccountViewModel
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     viewModel: AccountViewModel,
@@ -146,10 +147,11 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            if (state.error != null) {
+            val error = state.error
+            if (error != null) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = state.error,
+                    text = error,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
