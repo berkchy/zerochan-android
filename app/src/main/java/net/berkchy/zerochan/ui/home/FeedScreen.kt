@@ -19,9 +19,9 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.FirstPage
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.LastPage
+import androidx.compose.material.icons.automirrored.rounded.LastPage
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.TrendingUp
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -148,7 +148,7 @@ private fun FeedHeader(
                         label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
                         leadingIcon = {
                             Icon(
-                                Icons.Rounded.TrendingUp,
+                                Icons.AutoMirrored.Rounded.TrendingUp,
                                 contentDescription = null,
                                 modifier = Modifier.padding(start = 2.dp).size(14.dp),
                             )
@@ -228,7 +228,7 @@ private fun PagerFooter(
                 onClick = { onGoTo(state.page + 5) },
                 enabled = state.hasMore && !state.loading,
             ) {
-                Icon(Icons.Rounded.LastPage, contentDescription = "Jump ahead")
+                Icon(Icons.AutoMirrored.Rounded.LastPage, contentDescription = "Jump ahead")
             }
         }
 
