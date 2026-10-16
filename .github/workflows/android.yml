@@ -154,6 +154,10 @@ jobs:
           } >> "$NOTES"
 
           if gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
+            # the rolling release only ever carries the newest build
+            gh release view "$ROLLING_TAG" --json assets --jq '.assets[].name' \
+              | grep -E '\.apk$' \
+              | while read -r asset; do gh release delete-asset "$ROLLING_TAG" -n "$asset" >/dev/null; done
             gh release upload "$ROLLING_TAG" dist/*.apk --clobber
             gh release edit "$ROLLING_TAG" \
               --title "$TITLE" \
