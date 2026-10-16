@@ -28,6 +28,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,10 +58,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import net.berkchy.zerochan.ZerochanApp
+import net.berkchy.zerochan.BuildConfig
+import net.berkchy.zerochan.core.auth.GoogleAuthEvent
+import net.berkchy.zerochan.core.auth.GoogleOAuthSession
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.ui.downloads.LibraryScreen
 import net.berkchy.zerochan.ui.account.AccountViewModel
 import net.berkchy.zerochan.ui.account.LoginScreen
+import net.berkchy.zerochan.ui.account.RegisterScreen
 import net.berkchy.zerochan.ui.downloads.LibraryViewModel
 import net.berkchy.zerochan.ui.home.FeedScreen
 import net.berkchy.zerochan.ui.home.FeedViewModel
@@ -79,6 +86,7 @@ object Destination {
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
     const val LOGIN = "login"
+    const val REGISTER = "register"
     const val POST = "post/{$ARG_POST}?{$ARG_CHILDREN}"
     const val TAG = "feed/{$ARG_FEED}"
 
@@ -97,6 +105,24 @@ fun ZerochanNavHost(
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
+    val scopeGoogle = rememberCoroutineScope()
+    val googleMessage = remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        GoogleOAuthSession.events.collect { event ->
+            googleMessage.value = when (event) {
+                GoogleAuthEvent.NeedsConfiguration ->
+                    "Google sign in needs an OAuth client id. See the README."
+                GoogleAuthEvent.Cancelled -> "Google sign in was cancelled"
+                is GoogleAuthEvent.Failure -> event.reason
+                is GoogleAuthEvent.Code ->
+                    "Google authorised, but zerochan has to accept this app as an " +
+                        "OAuth client before it can sign you in. See the README."
+            }
+        }
+    }
     var searchError by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
 
@@ -131,6 +157,7 @@ fun ZerochanNavHost(
     )
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             AnimatedVisibility(showBars, enter = fadeIn(), exit = fadeOut()) {
                 NavigationBar {
@@ -162,6 +189,12 @@ fun ZerochanNavHost(
             }
         },
     ) { padding ->
+        LaunchedEffect(googleMessage.value) {
+            googleMessage.value?.let {
+                snackbar.showSnackbar(it)
+                googleMessage.value = null
+            }
+        }
         // Consume the window insets once here so nested screens (the post screen has its own
         // Scaffold with a TopAppBar) never stack a second status bar / navigation bar padding.
         val safePadding = Modifier
@@ -221,8 +254,38 @@ fun ZerochanNavHost(
             }
 
             composable(Destination.LOGIN) {
-                val vm: AccountViewModel = viewModel(factory = AccountViewModel.Factory(repository))
-                LoginScreen(vm, onBack = { navController.popBackStack() }, modifier = safePadding)
+                val vm: AccountViewModel = viewModel(
+                    key = "account",
+                    factory = AccountViewModel.Factory(repository),
+                )
+                LoginScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                    onOpenRegister = { navController.navigate(Destination.REGISTER) },
+                    onOpenGoogle = {
+                        val intent = GoogleOAuthSession.begin(context, BuildConfig.GOOGLE_CLIENT_ID)
+                        if (intent != null) runCatching { context.startActivity(intent) }
+                    },
+                    message = googleMessage.value,
+                    modifier = safePadding,
+                )
+            }
+
+            composable(Destination.REGISTER) {
+                val vm: AccountViewModel = viewModel(
+                    key = "account",
+                    factory = AccountViewModel.Factory(repository),
+                )
+                val registerState by vm.register.collectAsStateWithLifecycle()
+                RegisterScreen(
+                    state = registerState,
+                    onSubmit = vm::register,
+                    onCaptchaToken = { vm.clearRegisterError() },
+                    onClearError = vm::clearRegisterError,
+                    onBack = { navController.popBackStack() },
+                    onContinueToLogin = { navController.popBackStack() },
+                    modifier = safePadding,
+                )
             }
 
             composable(

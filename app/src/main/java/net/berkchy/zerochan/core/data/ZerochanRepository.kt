@@ -11,6 +11,7 @@ import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.net.Feed
 import net.berkchy.zerochan.core.net.LoginResult
+import net.berkchy.zerochan.core.net.RegisterResult
 import net.berkchy.zerochan.core.net.ZerochanAccount
 import net.berkchy.zerochan.core.net.ZerochanClient
 
@@ -22,6 +23,9 @@ class ZerochanRepository(
     appContext: android.content.Context,
 ) {
     private val _account = ZerochanAccount(context = appContext, client = client)
+    private val registrar =
+        net.berkchy.zerochan.core.net.ZerochanRegistrar(appContext, client)
+
     private val accountState = MutableStateFlow<net.berkchy.zerochan.core.net.Account?>(
         _account.current(),
     )
@@ -53,6 +57,14 @@ class ZerochanRepository(
         client.clearCache()
         return result
     }
+
+    suspend fun register(
+        username: String,
+        email: String,
+        password: String,
+        verify: String,
+        captchaToken: String,
+    ): RegisterResult = registrar.register(username, email, password, verify, captchaToken)
 
     fun signOut() {
         _account.signOut()

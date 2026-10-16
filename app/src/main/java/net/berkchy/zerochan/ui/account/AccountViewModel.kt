@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.core.net.Account
 import net.berkchy.zerochan.core.net.LoginResult
+import net.berkchy.zerochan.core.net.RegisterResult
 
 data class AccountUiState(
     val account: Account? = null,
@@ -17,24 +18,30 @@ data class AccountUiState(
     val error: String? = null,
 )
 
+data class RegisterUiState(
+    val busy: Boolean = false,
+    val error: String? = null,
+    val done: Boolean = false,
+    val needsCaptcha: Boolean = false,
+)
+
 class AccountViewModel(
     private val repository: ZerochanRepository,
 ) : ViewModel() {
 
-    private val account get() = repository.account
-
     private val _state = MutableStateFlow(
         AccountUiState(
-            account = account.storedUsername
-                ?.takeIf { account.isSignedIn }
-                ?.let { Account(it) },
+            account = repository.account.current(),
         )
     )
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
 
+    private val _register = MutableStateFlow(RegisterUiState())
+    val register: StateFlow<RegisterUiState> = _register.asStateFlow()
+
     init {
         viewModelScope.launch {
-            val refreshed = account.refresh()
+            val refreshed = repository.account.refresh()
             _state.value = _state.value.copy(account = refreshed)
         }
     }
@@ -44,8 +51,7 @@ class AccountViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(busy = true, error = null)
             when (val result = repository.signIn(name, password)) {
-                is LoginResult.Success ->
-                    _state.value = AccountUiState(account = result.account)
+                is LoginResult.Success -> _state.value = AccountUiState(account = result.account)
                 is LoginResult.Failure ->
                     _state.value = _state.value.copy(busy = false, error = result.reason)
             }
@@ -59,6 +65,32 @@ class AccountViewModel(
 
     fun clearError() {
         if (_state.value.error != null) _state.value = _state.value.copy(error = null)
+    }
+
+    fun register(
+        username: String,
+        email: String,
+        password: String,
+        verify: String,
+        captchaToken: String,
+    ) {
+        if (_register.value.busy) return
+        viewModelScope.launch {
+            _register.value = RegisterUiState(busy = true)
+            when (
+                val result = repository.register(username, email, password, verify, captchaToken)
+            ) {
+                RegisterResult.Success -> _register.value = RegisterUiState(done = true)
+                is RegisterResult.Failure -> _register.value = RegisterUiState(
+                    error = result.reason,
+                    needsCaptcha = result.needsCaptcha,
+                )
+            }
+        }
+    }
+
+    fun clearRegisterError() {
+        if (_register.value.error != null) _register.value = _register.value.copy(error = null)
     }
 
     class Factory(private val repository: ZerochanRepository) : ViewModelProvider.Factory {
