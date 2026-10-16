@@ -99,8 +99,8 @@ fun ZerochanNavHost(
 
     // zerochan answers /search?q= with a 301 onto the canonical tag, so the redirect has to be
     // resolved before there is anything to list.
-    val submitSearch: (String) -> Unit = { query ->
-        if (query.isBlank() || searching) return@Unit
+    val submitSearch: (String) -> Unit = fun(query: String) {
+        if (query.isBlank() || searching) return
         scope.launch {
             searching = true
             searchError = null
