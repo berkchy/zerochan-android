@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -94,13 +94,7 @@ fun FeedScreen(
                     listState = listState,
                     header = {
                         FeedHeader(
-                            title = when {
-                                !search.query.isBlank() -> search.query
-                                search.resolvedPath != null -> search.resolvedPath.replace('%20', ' ')
-                                viewModel.initialPath == null -> "Latest posts"
-                                viewModel.initialPath.equals("popular", ignoreCase = true) -> "Popular today"
-                                else -> viewModel.initialPath.replace("%20", " ")
-                            },
+                            title = feedTitle(viewModel, search),
                             icon = if (isLatest) Icons.Rounded.History else Icons.Rounded.Search,
                             showTrending = isLatest,
                             onTagClick = onTagClick,
@@ -117,6 +111,17 @@ fun FeedScreen(
                 )
             }
         }
+    }
+}
+
+private fun feedTitle(viewModel: FeedViewModel, search: SearchState): String {
+    val resolved = search.resolvedPath
+    return when {
+        !search.query.isBlank() -> search.query
+        !resolved.isNullOrBlank() -> resolved.replace("%20", " ")
+        viewModel.initialPath == null -> "Latest posts"
+        viewModel.initialPath.equals("popular", ignoreCase = true) -> "Popular today"
+        else -> viewModel.initialPath.replace("%20", " ")
     }
 }
 

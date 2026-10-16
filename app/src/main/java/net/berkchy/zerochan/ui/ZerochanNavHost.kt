@@ -178,7 +178,7 @@ fun ZerochanNavHost(
 
             composable(Destination.SETTINGS) {
                 val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(repository))
-                SettingsScreen(viewModel, Modifier.padding(bottom = padding.calculateBottomPadding()))
+                SettingsScreen(vm, Modifier.padding(bottom = padding.calculateBottomPadding()))
             }
 
             composable(
