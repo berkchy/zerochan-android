@@ -118,6 +118,23 @@ object SiteGoogleSignIn {
             null
         }
 
+    /**
+     * Google refuses OAuth in an embedded WebView (`403 disallowed_useragent`, "this browser or
+     * app may not be secure"). That verdict arrives as a redirect back onto `/login` with the
+     * reason in the query, or as Google's own error document, so it is matched on both.
+     */
+    fun isRefusedByGoogle(url: String, pageText: String): Boolean =
+        url.contains("disallowed_useragent", ignoreCase = true) ||
+            (url.contains("error", ignoreCase = true) &&
+                url.contains("secure", ignoreCase = true)) ||
+            pageText.contains("may not be secure", ignoreCase = true) ||
+            pageText.contains("disallowed_useragent", ignoreCase = true)
+
+    /** Google blocked the sign in; there is nothing to retry in this WebView. */
+    const val REFUSED_MESSAGE =
+        "Google will not sign in from inside an app's browser. Tap Browser, sign in on the " +
+            "website, then bring the session over with Settings → Account → Import."
+
     private val SESSION_COOKIES = listOf("PHPSESSID", "guest_id", "user_id", "z_uid")
     private const val TAG = "gsi"
 }

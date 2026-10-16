@@ -21,6 +21,14 @@ Minimum Android 7.0 (API 24), built against API 35.
 
 ### Fixed
 
+- **The register captcha now fits on screen.** reCAPTCHA v2 sometimes answers a tick with an image
+  challenge, and the widget had a fixed 84dp box with scrolling switched off, so the grid was
+  clipped and impossible to answer. The box measures itself, grows to fit the challenge and
+  scrolls past the cap.
+- **Google sign in is no longer rejected as an app browser.** Google's check reads the
+  `Sec-CH-UA` client hints, not just the `User-Agent` string, and a WebView brands itself
+  `"Google WebView"` there. Those hints are now overwritten with Chrome's, which is what
+  unblocked the "this browser or app may not be secure" error.
 - **Post details no longer fail with "unexpected response".** zerochan only serves the
   `/{id}?json` variant to clients it recognises as a desktop browser and silently answers
   everyone else with the rendered page. Requests now carry a desktop Chrome User-Agent, and if

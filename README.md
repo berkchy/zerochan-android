@@ -90,7 +90,7 @@ Five densities (mdpi to xxxhdpi), saved as WebP to keep the resource folder arou
 | Path | State |
 | --- | --- |
 | Sign in with username / password | Works. `POST /login`, no captcha on this endpoint. |
-| Register | Works. reCAPTCHA v2 is rendered in-app; the user ticks it and the `g-recaptcha-response` token is posted with the form. |
+| Register | Works. reCAPTCHA v2 is rendered in-app; the user ticks it and the `g-recaptcha-response` token is posted with the form. An image challenge ("select all the buses") grows the widget to fit and scrolls. |
 | Sign in with Google | Works. The real zerochan `/login` page, and its real Google button, in an in-app WebView. |
 | Import session | Works. Paste the `PHPSESSID` cookie from a signed-in browser session. |
 
@@ -132,15 +132,26 @@ client registration, nobody to ask.
 
 Two details the WebView needs to get right:
 
-- It uses the same desktop Chrome `User-Agent` as every other request. `xbotcheck` is tied to the
-  agent that solved it, and Google refuses OAuth from clients it detects as embedded WebViews,
-  which it does from the `; wv` token a stock WebView sends.
+- It uses the same desktop Chrome `User-Agent` as every other request, **and** overwrites the
+  User-Agent Client Hints with `WebSettingsCompat.setUserAgentMetadata`. The `User-Agent` string
+  alone stopped being enough years ago: Chrome also sends `Sec-CH-UA`, and a WebView brands
+  itself `"Google WebView"` in there. `xbotcheck` is tied to the agent that solved it, so a
+  stock WebView agent (`; wv`) would force the interstitial again as well.
 - Only `xbotcheck` / `guest_id` / `z_theme` are seeded into it. A `PHPSESSID` is never seeded, so
   an existing session can never be mistaken for the one Google is about to create.
 
 If the Google account has no zerochan account yet, `/oauth` answers `200` with the rejection as
 the page body; that text is read back so the sheet can say exactly that instead of failing
 vaguely. Register on the website first, then link Google in the account settings.
+
+**This fights Google on purpose, and that has to be said plainly.** Google's OAuth policy
+forbids running an authorization request in an embedded user-agent under the app's control, and
+Google enforces it (`403 disallowed_useragent`, "this browser or app may not be secure"). The
+overrides above are the only supported way to stop the WebView announcing itself, and they do
+unblock it today - but Google is free to detect WebViews some other way tomorrow, and Play's
+Guideline 4.8 rejects the pattern regardless. The sign in sheet watches for the refusal, and when
+it comes it says so and points at **Settings → Account → Import**, which needs nobody's
+cooperation and keeps working forever.
 
 ### Signing
 

@@ -212,7 +212,6 @@ fun RegisterScreen(
                     token = it
                     onCaptchaToken(it)
                 },
-                height = 84.dp,
             )
             Text(
                 text = if (token.isNotBlank()) "Verified" else "Tick the box above to continue",

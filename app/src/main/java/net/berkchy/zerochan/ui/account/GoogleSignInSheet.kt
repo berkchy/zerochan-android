@@ -48,6 +48,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.webkit.UserAgentMetadata
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import net.berkchy.zerochan.core.auth.SiteGoogleSignIn
 import net.berkchy.zerochan.core.net.AppLog
 
@@ -243,6 +246,7 @@ private class SignInFlags {
     @Volatile var credentialPosted = false
     @Volatile var handingOff = false
     @Volatile var handedOver = false
+    @Volatile var refused = false
 }
 
 private class ViewHolder {
@@ -295,13 +299,21 @@ private class SignInClient(
     override fun onPageFinished(view: WebView, url: String) {
         loading(false)
         AppLog.d(TAG, "web view at $url (credential posted: ${flags.credentialPosted})")
-        if (!flags.credentialPosted || flags.handingOff) return
-        // Give the response a moment to land in the cookie jar before reading it.
-        view.postDelayed({ handOver(view) }, HARVEST_DELAY_MS)
+        if (flags.credentialPosted) {
+            // Give the response a moment to land in the cookie jar before reading it.
+            view.postDelayed({ handOver(view) }, HARVEST_DELAY_MS)
+            return
+        }
+        view.pageText { text ->
+            if (!SiteGoogleSignIn.isRefusedByGoogle(url, text)) return@pageText
+            flags.refused = true
+            AppLog.w(TAG, "google refused the sign in from the app's web view")
+            failure(SiteGoogleSignIn.REFUSED_MESSAGE)
+        }
     }
 
     private fun handOver(view: WebView) {
-        if (flags.handingOff) return
+        if (flags.handingOff || flags.refused) return
         flags.handingOff = true
         // `/oauth` answers `200` even when it refuses the credential, with a php var_dump as the
         // page body, so the rendered text is the only place the reason is written down. Reading
@@ -312,7 +324,7 @@ private class SignInClient(
 
     /** Runs at most once, whichever of the two hand offs above gets there first. */
     private fun complete(unlinked: String?) {
-        if (flags.handedOver) return
+        if (flags.handedOver || flags.refused) return
         flags.handedOver = true
         if (unlinked != null) {
             failure(unlinked)
@@ -350,7 +362,37 @@ private fun WebSettings.configure(userAgent: String) {
     javaScriptCanOpenWindowsAutomatically = false
     setSupportMultipleWindows(false)
     mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+
+    // `setUserAgentString` only rewrites the `User-Agent` header. Chrome also sends User-Agent
+    // Client Hints (`Sec-CH-UA`), and a WebView's version brands itself `"Google WebView"` in
+    // there - which is the signal Google's sign in actually reads now, since the plain header
+    // stopped being trusted years ago. This is the only supported way to overwrite it.
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
+        runCatching {
+            WebSettingsCompat.setUserAgentMetadata(
+                this,
+                UserAgentMetadata.Builder()
+                    .setBrands(CHROME_BRANDS)
+                    .setFullVersion(CHROME_VERSION)
+                    .setPlatform("Windows")
+                    .setPlatformVersion("10.0.0")
+                    .setArchitecture("x86")
+                    .setModel("PC")
+                    .setWow64(false)
+                    .setMobile(false)
+                    .build(),
+            )
+        }.onFailure { AppLog.w(TAG, "could not override the user agent metadata: ${it.message}") }
+    }
 }
+
+/** What a desktop Chrome of the agent above advertises in `Sec-CH-UA`. */
+private val CHROME_BRANDS = listOf(
+    "Chromium" to "124",
+    "Google Chrome" to "124",
+    "Not-A.Brand" to "99",
+)
+private const val CHROME_VERSION = "124.0.0.0"
 
 /** The rendered text of the current page, for reading the text of an error response. */
 private fun WebView.pageText(onReady: (String) -> Unit) {
