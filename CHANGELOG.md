@@ -47,6 +47,11 @@ Minimum Android 7.0 (API 24), built against API 35.
 
 ### Added
 
+- **Sign in with Google.** zerochan signs users in with Google Identity Services against its own
+  OAuth client, so the credential only ever comes out of a real browser engine - the sign in
+  sheet loads the actual zerochan `/login` page, with the actual Google button, in an in-app
+  WebView, and the session zerochan hands back is lifted into the app. No Google SDK and no
+  client registration are involved. Accounts that were created with Google can now sign in.
 - **Latest feed** – everything newest-first from `/?p=<n>&json`, 48 posts per page, infinite
   scroll. Paging switches to zerochan's `?o=<id>` id-offset automatically past page 500 so the
   history never runs out.
