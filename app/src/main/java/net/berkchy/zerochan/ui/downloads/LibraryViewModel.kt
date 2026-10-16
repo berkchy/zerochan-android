@@ -29,6 +29,10 @@ class LibraryViewModel(
     val settings: StateFlow<AppSettings> = repository.settingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
+    val account: StateFlow<net.berkchy.zerochan.core.net.Account?> =
+        repository.accountFlow
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), repository.account.current())
+
     fun cancelDownload(id: Long) = viewModelScope.launch { repository.cancelDownload(id) }
     fun retryDownload(id: Long) = viewModelScope.launch { repository.retryDownload(id) }
     fun removeDownload(id: Long) = viewModelScope.launch { repository.removeDownload(id) }

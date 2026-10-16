@@ -58,6 +58,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.ui.downloads.LibraryScreen
+import net.berkchy.zerochan.ui.account.AccountViewModel
+import net.berkchy.zerochan.ui.account.LoginScreen
 import net.berkchy.zerochan.ui.downloads.LibraryViewModel
 import net.berkchy.zerochan.ui.home.FeedScreen
 import net.berkchy.zerochan.ui.home.FeedViewModel
@@ -76,6 +78,7 @@ object Destination {
     const val POPULAR = "feed/popular"
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
+    const val LOGIN = "login"
     const val POST = "post/{$ARG_POST}?{$ARG_CHILDREN}"
     const val TAG = "feed/{$ARG_FEED}"
 
@@ -210,7 +213,16 @@ fun ZerochanNavHost(
 
             composable(Destination.SETTINGS) {
                 val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(repository))
-                SettingsScreen(vm, Modifier.padding(bottom = padding.calculateBottomPadding()))
+                SettingsScreen(
+                    viewModel = vm,
+                    onSignIn = { navController.navigate(Destination.LOGIN) },
+                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                )
+            }
+
+            composable(Destination.LOGIN) {
+                val vm: AccountViewModel = viewModel(factory = AccountViewModel.Factory(repository))
+                LoginScreen(vm, onBack = { navController.popBackStack() }, modifier = safePadding)
             }
 
             composable(

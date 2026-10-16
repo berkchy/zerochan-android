@@ -1,12 +1,17 @@
 package net.berkchy.zerochan.core.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import net.berkchy.zerochan.core.download.DownloadCenter
 import net.berkchy.zerochan.core.download.QueueSnapshot
 import net.berkchy.zerochan.core.download.SettingsStore
 import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.net.Feed
+import net.berkchy.zerochan.core.net.LoginResult
+import net.berkchy.zerochan.core.net.ZerochanAccount
 import net.berkchy.zerochan.core.net.ZerochanClient
 
 class ZerochanRepository(
@@ -14,7 +19,12 @@ class ZerochanRepository(
     private val downloader: DownloadCenter,
     private val dao: LibraryDao,
     private val settings: SettingsStore,
+    appContext: android.content.Context,
 ) {
+    private val _account = ZerochanAccount(context = appContext, client = client)
+    private val accountState = MutableStateFlow<net.berkchy.zerochan.core.net.Account?>(
+        _account.current(),
+    )
     /** One listing page; [offsetId] continues past zerochan's page-500 limit. */
     suspend fun loadPage(feed: Feed, page: Int, offsetId: Long?): List<Post> =
         client.loadListing(feed, page, offsetId)
@@ -30,6 +40,25 @@ class ZerochanRepository(
         client.resolveSearch(query) ?: throw net.berkchy.zerochan.core.net.NoResultsException(
             "No tag matches \"$query\"",
         )
+
+    val account: ZerochanAccount get() = _account
+
+    /** Emits the signed-in account, or null, so the UI can follow sign in / sign out. */
+    val accountFlow: StateFlow<net.berkchy.zerochan.core.net.Account?> = accountState.asStateFlow()
+
+    suspend fun signIn(name: String, password: String): LoginResult {
+        val result = _account.signIn(name, password)
+        accountState.value = _account.current()
+        // cached pages were fetched anonymously, drop them
+        client.clearCache()
+        return result
+    }
+
+    fun signOut() {
+        _account.signOut()
+        accountState.value = null
+        client.clearCache()
+    }
 
     fun favorites(): Flow<List<FavoriteEntity>> = dao.favorites()
 

@@ -46,6 +46,24 @@ class ZerochanCookieJar(context: Context) : CookieJar {
         }
     }
 
+    /**
+     * Signs out: the session cookies go, the bot-check cookie stays so the next request does
+     * not have to solve the handshake again.
+     */
+    fun clearSession() {
+        synchronized(store) {
+            store.keys.removeAll(SESSION_COOKIES)
+            persist()
+        }
+    }
+
+    fun has(name: String): Boolean = synchronized(store) { store.containsKey(name) }
+
+    fun cookieHeader(): String = synchronized(store) {
+        store.values.filter { it.expiresAt > System.currentTimeMillis() }
+            .joinToString("; ") { "${it.name}=${it.value}" }
+    }
+
     private fun persist() {
         val value = store.values
             .filter { it.expiresAt > System.currentTimeMillis() }
@@ -54,6 +72,7 @@ class ZerochanCookieJar(context: Context) : CookieJar {
     }
 
     private companion object {
+        val SESSION_COOKIES = setOf("PHPSESSID", "guest_id", "z_theme", "user_id", "z_uid")
         const val HOST_COOKIE = "cookies"
         const val BASE = "https://www.zerochan.net/"
     }

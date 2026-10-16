@@ -52,6 +52,16 @@ class ZerochanClient(
         .addInterceptor(BotCheckInterceptor(cookieJar))
         .build()
 
+    /** Same pipeline, exposed for the login POST so it inherits the bot check. */
+    fun documentClient(): OkHttpClient = client
+
+    fun hasSession(): Boolean = cookieJar.has("PHPSESSID")
+
+    fun clearSession() {
+        cookieJar.clearSession()
+        clearCache()
+    }
+
     private val noRedirectClient: OkHttpClient = baseClient.newBuilder()
         .followRedirects(false)
         .followSslRedirects(false)
@@ -262,6 +272,9 @@ class ZerochanClient(
         if (required) return null
         return null
     }
+
+    /** Fetches a page through the gate + retry pipeline, ignoring the listing validators. */
+    suspend fun page(url: String): String? = fetch(url, attempts = 2)
 
     private suspend fun execute(url: String): String? {
         val request = documentRequest(url).build()

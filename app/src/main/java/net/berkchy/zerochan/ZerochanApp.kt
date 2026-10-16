@@ -86,6 +86,7 @@ class ZerochanApp : Application(), ImageLoaderFactory {
             downloader = downloadCenter,
             dao = database.libraryDao(),
             settings = settings,
+            appContext = this,
         )
 
         // resume anything that was still in flight when the process was killed
