@@ -17,7 +17,33 @@ Minimum Android 7.0 (API 24), built against API 35.
 
 ---
 
-## [Rolling] - Unreleased
+## [Rolling] - 1.1.0
+
+### Fixed
+
+- **Post details no longer fail with "unexpected response".** zerochan only serves the
+  `/{id}?json` variant to clients it recognises as a desktop browser and silently answers
+  everyone else with the rendered page. Requests now carry a desktop Chrome User-Agent, and if
+  the json still is not served the app parses the page itself - the same metadata lives in the
+  page's `application/ld+json` block. This is covered by unit tests against captured payloads.
+- **"Similar" posts appear again.** `/similar3?id=..&ajax` was affected by the same problem; it
+  now falls back to the inlined related list on the mobile post page.
+- **Square thumbnails.** Grid, library and related strips use uniform 1:1 cells with a centre
+  crop, so the layout no longer depends on the artwork proportions.
+- **Window insets.** Content no longer draws under the status bar or the navigation bar.
+- **Thumbnails always load.** Previews are requested as JPEG; AVIF decoding is not available on
+  every Android release still supported.
+- **Icon** - full launcher/splash set generated from the new artwork, five densities, WebP.
+
+### Changed
+
+- The image viewer popup is gone. Downloading is the single pink action button in the bottom
+  right of the post screen, which reports progress while it runs.
+- The swipe pager now walks the post's own images **and** the related posts in one list, so a
+  horizontal swipe continues from the post into the images related to it. The thumbnail strip
+  underneath mirrors the same list and stays in sync while the neighbours load.
+- Document requests are spaced out, retried with backoff and cached, and every request,
+  challenge and parse result is written to a log file.
 
 ### Added
 

@@ -133,6 +133,7 @@ jobs:
           VERSION_CODE="${{ steps.version.outputs.code }}"
           SHA="$(git rev-parse --short HEAD)"
 
+          TITLE="Zerochan $VERSION_NAME (rolling · ${SHA:0:7})"
           NOTES=$(mktemp)
           cat CHANGELOG.md > "$NOTES"
           {
@@ -155,11 +156,11 @@ jobs:
           if gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
             gh release upload "$ROLLING_TAG" dist/*.apk --clobber
             gh release edit "$ROLLING_TAG" \
-              --title "Zerochan $VERSION_NAME (rolling)" \
+              --title "$TITLE" \
               --notes-file "$NOTES"
           else
             gh release create "$ROLLING_TAG" dist/*.apk \
-              --title "Zerochan $VERSION_NAME (rolling)" \
+              --title "$TITLE" \
               --notes-file "$NOTES" \
               --latest
           fi
