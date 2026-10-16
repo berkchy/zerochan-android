@@ -55,6 +55,8 @@ import net.berkchy.zerochan.ui.downloads.LibraryScreen
 import net.berkchy.zerochan.ui.downloads.LibraryViewModel
 import net.berkchy.zerochan.ui.home.FeedScreen
 import net.berkchy.zerochan.ui.home.FeedViewModel
+import net.berkchy.zerochan.ui.home.PopularScreen
+import net.berkchy.zerochan.ui.home.PopularViewModel
 import net.berkchy.zerochan.ui.post.PostScreen
 import net.berkchy.zerochan.ui.post.PostViewModel
 import net.berkchy.zerochan.ui.settings.SettingsScreen
@@ -158,11 +160,10 @@ fun ZerochanNavHost(
             }
 
             composable(Destination.POPULAR) {
-                val vm: FeedViewModel = viewModel(factory = FeedViewModel.Factory(repository, "popular"))
-                FeedScreen(
+                val vm: PopularViewModel = viewModel(factory = PopularViewModel.Factory(repository))
+                PopularScreen(
                     viewModel = vm,
-                    onPostClick = { navController.navigate(Destination.postRoute(it.id, it.children)) },
-                    onTagClick = { navController.navigate(Destination.tagRoute(encodeTag(it))) },
+                    onOpenPost = { navController.navigate(Destination.postRoute(it, emptyList())) },
                     modifier = safePadding,
                 )
             }
