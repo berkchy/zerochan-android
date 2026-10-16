@@ -1,7 +1,6 @@
 package net.berkchy.zerochan.core.net
 
 import android.content.Context
-import net.berkchy.zerochan.core.model.ListingDto
 import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.model.PostDetailDto
@@ -52,6 +51,9 @@ class ZerochanClient(
         .addInterceptor(BotCheckInterceptor(cookieJar))
         .build()
 
+    /** Talks to the json mirror: no session, no bot check, just plain https. */
+    private val apiClient: OkHttpClient = ZcApi.client(baseClient)
+
     /** Same pipeline, exposed for the login POST so it inherits the bot check. */
     fun documentClient(): OkHttpClient = client
 
@@ -87,18 +89,32 @@ class ZerochanClient(
     // ---------------------------------------------------------------- listings
 
     /**
-     * Listings are read straight from the rendered grid.
-     *
-     * zerochan serves `?json` only for a handful of requests per session and then quietly falls
-     * back to the html page, so the json variant is not something a browsable feed can rely on.
-     * The grid markup carries everything the list needs - id, preview, WxH, favourite count and
-     * the multi image grouping - in a single request, which also halves the request count.
+     * Listings are read from the json mirror, which returns favourites and multi image sizes in
+     * one clean request. The rendered grid is still there as the fallback: it is what answers for
+     * tags the mirror cannot resolve (members only boards, ambiguous single tags) and whenever the
+     * mirror is down or rate limited.
      */
     suspend fun loadListing(feed: Feed, page: Int, offsetId: Long?): List<Post> =
         withContext(Dispatchers.IO) {
             // A blank tag path is the empty search box; fall back to the latest feed instead of
             // requesting "/" with a tag filter and calling the answer "restricted".
             val target = if (feed is Feed.Tag && feed.path.isBlank()) Feed.Latest else feed
+
+            val mirrored = ZcApi.posts(apiClient, target, PAGE_SIZE, page, offsetId)
+            if (mirrored != null && mirrored.isNotEmpty()) {
+                return@withContext mirrored.also { posts ->
+                    AppLog.d(
+                        TAG,
+                        "listing ${target.key} page=$page <- mirror ${posts.size} posts, " +
+                            "multi=${posts.count { it.isMultiple }}",
+                    )
+                }
+            }
+            // An empty page is a real answer for a tag with nothing on it, so only the html path
+            // can tell "restricted" apart from "empty" - which is exactly why it stays.
+            val reason = if (mirrored == null) "no answer" else "0 posts"
+            AppLog.w(TAG, "listing ${target.key} page=$page <- mirror $reason, reading the grid")
+
             val url = listingUrl(target, page, offsetId)
             AppLog.d(TAG, "listing ${target.key} page=$page offset=$offsetId -> $url")
 
@@ -122,7 +138,7 @@ class ZerochanClient(
             posts.also {
                 AppLog.d(
                     TAG,
-                    "listing ${target.key} page=$page -> ${it.size} posts, " +
+                    "listing ${target.key} page=$page <- grid ${it.size} posts, " +
                         "multi=${it.count { post -> post.isMultiple }}",
                 )
             }
@@ -206,15 +222,20 @@ class ZerochanClient(
     }
 
     /**
-     * Ids that belong to the same multi-image post. The detail page prefetches its neighbours,
-     * which is where zerochan advertises the group members.
+     * Ids that belong to the same multi-image post. The mirror knows the group from the post
+     * detail; the mobile page prefetches its neighbours, which is where zerochan itself
+     * advertises the group members and stays the fallback for it.
      */
     suspend fun loadChildren(id: Long): List<Long> = withContext(Dispatchers.IO) {
+        ZcApi.children(apiClient, id)?.let { mirrored ->
+            return@withContext mirrored.also { AppLog.d(TAG, "children $id <- mirror ${it.size}") }
+        }
+
         val html = fetch("$BASE/$id?mobile=1", attempts = 2, required = false)
             ?: return@withContext listOf(id)
         val prefetched = HtmlParser.parsePrefetchIds(html)
         (listOf(id) + prefetched).distinct().also {
-            AppLog.d(TAG, "children $id -> ${it.size}")
+            AppLog.d(TAG, "children $id <- mobile page ${it.size}")
         }
     }
 
@@ -326,6 +347,9 @@ class ZerochanClient(
         private const val TAG = "net"
         private const val BASE = "https://www.zerochan.net"
         private const val MIN_PAGE_BYTES = 4_000
+
+        /** Posts per listing page, matching the size of the site's own page buttons. */
+        const val PAGE_SIZE = 21
 
         fun createBaseClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

@@ -81,20 +81,6 @@ class ZerochanParsingTest {
     // ------------------------------------------------------------------ html
 
     @Test
-    fun `favorite counts and multi image groups come from the desktop markup`() {
-        val enrichment = HtmlParser.parseListing(asset("listing_page1.html"))
-
-        // id 4732146 is rendered as `<a data-id="4732146" class="fav"><b ...>4</b></a>`
-        assertEquals(4, enrichment.favoritesOf(4732146L))
-        // every rendered cell carries a counter, even the zero ones
-        assertEquals(46, enrichment.favorites.size)
-
-        // 4732141 is a grouped post: data-children="4732141,4732142"
-        assertEquals(listOf(4732141L, 4732142L), enrichment.childrenOf(4732141L))
-        assertNull(enrichment.childrenOf(4732146L))
-    }
-
-    @Test
     fun `post page metadata is scraped from ld json and the tag list`() {
         val meta = HtmlParser.parsePostMeta(asset("post_page.html"))
         assertEquals(1, meta.favorites)

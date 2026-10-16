@@ -4,9 +4,9 @@ Material 3 / Jetpack Compose client for [zerochan.net](https://www.zerochan.net)
 
 ## Features
 
-- **Latest feed** – `/` listing with infinite scroll (48 posts per page, `?p=`/`?o=` pagination).
-- **Popular today** – ranked html grid.
-- **Search** – `/search?q=` is resolved to the canonical tag page, then paged with `?s=id`.
+- **Latest feed** – paged listing, 21 posts per page, with favourite and multi-image badges.
+- **Popular today** – ranked grid.
+- **Search** – `/search?q=` is resolved to the canonical tag, then paged as a listing.
 - **Post detail** – full resolution, dimensions, size, format, favorites, tags, artist,
   source url, share sheet.
 - **Grouped posts** – a post can hold several images; they are grouped into a swipeable pager
@@ -21,30 +21,44 @@ Material 3 / Jetpack Compose client for [zerochan.net](https://www.zerochan.net)
 
 ## How the site is consumed
 
-zerochan has no open API but exposes everything through `?json` / `?xml`:
+Listings come from the community run json mirror at
+[`zerochan-api.vercel.app`](https://zerochan-api.vercel.app), which in turn reads zerochan:
 
 | Purpose | Endpoint |
 | --- | --- |
-| Latest listing | `GET /?p=<n>&json`, `GET /?o=<id>&json` |
-| Tag listing | `GET /<Tag>?s=id&json` (+ `&p=` / `&o=`) |
-| Popular | `GET /popular?p=<n>` (html) |
+| Latest listing | `GET /api/posts?limit=<n>&page=<n>&include=engagement` |
+| Tag listing | `GET /api/tags?tags=<tag>&tags=<tag>&include=engagement` |
+| Popular | `GET /api/popular?limit=<n>&page=<n>` |
+| Post group | `GET /api/posts/<id>` |
 | Post detail | `GET /<id>?json` |
 | Similar posts | `GET /similar3?id=<id>&ajax` (html fragment) |
 | Search | `GET /search?q=<q>` → 301 to the tag page |
 
+The rendered grid is the fallback, not dead code - see below.
+
 Details worth knowing:
 
-1. Listings answer with **HTTP 500** but a valid body, and that body is a stray `{ ... }`
-   wrapper around the real json document followed by the sidebar markup. `JsonEnvelope`
-   cuts the balanced json out and the status code is ignored.
-2. Pages cap at 500; past that the API asks for `?o=<lowest id of the previous page>`.
-   `PageKey` switches to offsets automatically.
-3. Every document request is gated by a cookie handshake: the server replies `503` with
-   `/totally-innocent-logo-image.svg?<token>`, fetching that svg issues
+1. The site's own `?json` listings answer with **HTTP 500** but a valid body, and that body is a
+   stray `{ ... }` wrapper around the real json document followed by the sidebar markup.
+   `JsonEnvelope` cuts the balanced json out and the status code is ignored. That path is still
+   used for post details.
+2. `include=engagement` is what makes the mirror worth using: favourite counts and multi-image
+   group sizes do not exist in the site's json at all, and the mirror reads them off the
+   rendered grid for the whole page in **one** extra upstream request. Without it the badges on
+   the grid would silently be empty.
+3. `?p=` caps at 100 pages; past that the mirror and the site both want the id cursor
+   (`?o=<lowest id of the previous page>`), which `FeedViewModel` switches to automatically.
+4. Every document request to the site is gated by a cookie handshake: the server replies `503`
+   with `/totally-innocent-logo-image.svg?<token>`, fetching that svg issues
    `Set-Cookie: xbotcheck=<value>`, and replaying the request then succeeds.
    `BotCheckInterceptor` performs this transparently.
-4. Favorite counts and multi-image groupings only exist in the desktop html, so each listing
-   page also issues one html request to enrich the json payload.
+5. The mirror is a third party, so it is treated as an accelerator only. When it is unreachable,
+   rate limited, or has nothing to say (members-only boards such as Ecchi, and ambiguous single
+   tags like `Rem` that the site itself will not resolve), `ZerochanClient` falls back to
+   parsing the html grid - which is also the only thing that can tell a restricted tag apart
+   from an empty one.
+6. Mirror requests deliberately carry no cookies: a signed in user's `PHPSESSID` is never handed
+   to a third party host. Details, downloads and everything else still go straight to the site.
 
 ## App icon
 

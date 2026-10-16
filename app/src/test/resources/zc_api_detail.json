@@ -1,0 +1,105 @@
+{
+  "ok": true,
+  "data": {
+    "id": 4732396,
+    "primary": "Fu Xuan",
+    "tags": [
+      "Female",
+      "Fanart",
+      "Flower",
+      "Long Hair",
+      "Pink Hair",
+      "Tights",
+      "Laying Down",
+      "Jewelry",
+      "Open Mouth",
+      "Earrings",
+      "Detached Sleeves",
+      "Solo",
+      "Hair Ornament",
+      "Gemstone",
+      "Shoeless",
+      "Frills",
+      "Feet",
+      "Hair Rings",
+      "Brooch",
+      "Purple Gem",
+      "Collar (Clothes)",
+      "Laying on Back",
+      "Looking At Camera",
+      "White Legwear",
+      "Choker",
+      "Half Ponytail",
+      "Forehead Mark",
+      "Exposed Shoulders",
+      "Pixiv Id 24865521",
+      "White Tights",
+      "Honkai Star Rail",
+      "Fu Xuan",
+      "Tassels",
+      "Tassel Earrings",
+      "Hair Pin",
+      "Hanamusubi Knot",
+      "Frilled Choker",
+      "Foot Sole",
+      "Fu Xuan (Default Outfit)",
+      "Fanart from Bilibili",
+      "Bilibili",
+      "Very Long Hair",
+      "Feixianji"
+    ],
+    "width": 3041,
+    "height": 4300,
+    "megapixels": 13.08,
+    "aspectRatio": 0.7072,
+    "orientation": "portrait",
+    "resolution": "huge",
+    "source": "https://www.bilibili.com/opus/888229151300911143",
+    "sourceDomain": "bilibili.com",
+    "permalink": "https://www.zerochan.net/4732396",
+    "md5": "a993ecacda0e6a54da05484e4e63885d",
+    "sizeBytes": 8009728,
+    "sizeHuman": "7.6 MB",
+    "urls": {
+      "thumbnail": "https://s3.zerochan.net/240/46/47/4732396.avif",
+      "small": "https://s1.zerochan.net/75/46/47/4732396.jpg",
+      "medium": "https://s3.zerochan.net/240/46/47/4732396.avif",
+      "large": "https://s1.zerochan.net/Fu.Xuan.600.4732396.jpg",
+      "full": "https://static.zerochan.net/Fu.Xuan.full.4732396.jpg"
+    },
+    "detailUrl": "/api/posts/4732396",
+    "fav": 4,
+    "uploader": "Pixiv Id 24865521",
+    "uploaderUrl": "https://www.zerochan.net/user/PhoenixNight",
+    "publishedAt": "2026-10-16T07:26:54+00:00",
+    "format": "jpg",
+    "dominantColor": null,
+    "breadcrumbs": [
+      {
+        "type": "game",
+        "tag": "Honkai Star Rail",
+        "label": "Honkai Star Rail"
+      },
+      {
+        "type": "character",
+        "tag": "Fu Xuan",
+        "label": "Fu Xuan"
+      }
+    ],
+    "children": [
+      4732397
+    ],
+    "childCount": 2,
+    "adjacent": {
+      "prev": null,
+      "next": 4731116
+    }
+  },
+  "meta": {
+    "id": 4732396,
+    "tookMs": 797,
+    "cached": false,
+    "extrasCached": false,
+    "identity": "zc-api"
+  }
+}

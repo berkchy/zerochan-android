@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.core.model.PostDetail
 import net.berkchy.zerochan.core.net.Feed
+import net.berkchy.zerochan.core.net.ZerochanClient
 
 data class PopularItem(
     val id: Long,
@@ -140,7 +141,7 @@ class PopularViewModel(
     }
 
     private companion object {
-        const val PAGE_SIZE = 21
+        const val PAGE_SIZE = ZerochanClient.PAGE_SIZE
         const val PREFETCH_AHEAD = 4
     }
 }

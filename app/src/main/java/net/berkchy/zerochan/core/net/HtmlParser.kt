@@ -8,34 +8,11 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /**
- * The listing `?json` payload carries no favorite counts and no grouping information, so those
- * are read from the desktop html rendering of the very same page.
+ * The desktop grid rendering. This is the fallback for every listing the json mirror will not
+ * serve - and the only way to tell a members-only tag apart from an empty one - so it stays the
+ * reference implementation rather than a leftover.
  */
 object HtmlParser {
-
-    data class Enrichment(
-        val favorites: Map<Long, Int> = emptyMap(),
-        val children: Map<Long, List<Long>> = emptyMap(),
-    ) {
-        fun favoritesOf(id: Long): Int? = favorites[id]
-        fun childrenOf(id: Long): List<Long>? = children[id]
-    }
-
-    fun parseListing(html: String): Enrichment {
-        val doc = Jsoup.parse(html)
-        val fav = HashMap<Long, Int>()
-        val kids = HashMap<Long, List<Long>>()
-
-        doc.select("li[data-id]").forEach { li ->
-            val id = li.attr("data-id").toLongOrNull() ?: return@forEach
-            li.selectFirst("a.fav > b")?.text()?.trim()?.toIntOrNull()?.let { fav[id] = it }
-            val children = li.attr("data-children")
-            if (children.isNotBlank()) {
-                kids[id] = children.split(',').mapNotNull { it.trim().toLongOrNull() }
-            }
-        }
-        return Enrichment(fav, kids)
-    }
 
     /** Full grid parse for html-only listings such as `/popular`. */
     fun parseGrid(html: String): List<Post> {

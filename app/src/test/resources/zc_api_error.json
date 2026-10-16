@@ -1,0 +1,16 @@
+{
+  "ok": false,
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "\"limit\" must be between 1 and 250, received 9999.",
+    "status": 400,
+    "details": {
+      "parameter": "limit",
+      "min": 1,
+      "max": 250,
+      "received": 9999,
+      "hint": "Zerochan serves at most 250 entries per page."
+    },
+    "docs": "/api"
+  }
+}

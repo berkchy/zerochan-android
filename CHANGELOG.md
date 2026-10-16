@@ -19,6 +19,21 @@ Minimum Android 7.0 (API 24), built against API 35.
 
 ## [Rolling] - 1.1.0
 
+### Changed
+
+- **Listings now come from a json mirror.** The feed, the popular board and tag pages are read
+  from the community run `zerochan-api.vercel.app` instead of scraping the rendered grid. It
+  answers with one clean json document instead of a stray-brace wrapper served as `HTTP 500`,
+  is not throttled after a handful of requests, and - with `include=engagement` - carries the
+  favourite counts and multi-image group sizes for a whole page in a single extra upstream
+  request. Post details, downloads and sign in still talk to zerochan directly.
+- **The html grid stays as a fallback.** The mirror is a third party, so whenever it is
+  unreachable, rate limited or has nothing to say (members-only boards, ambiguous single tags)
+  the app parses the grid exactly as before - which is also the only way to tell a restricted
+  tag apart from an empty one.
+- **Signed in cookies are never sent to the mirror.** Mirror requests go out with no cookie jar,
+  so a session stays between the app and zerochan.
+
 ### Fixed
 
 - **The register captcha now fits on screen.** reCAPTCHA v2 sometimes answers a tick with an image

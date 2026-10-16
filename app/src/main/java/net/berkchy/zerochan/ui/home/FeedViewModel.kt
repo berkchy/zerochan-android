@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.core.model.Post
 import net.berkchy.zerochan.core.net.Feed
+import net.berkchy.zerochan.core.net.ZerochanClient
 
 /**
  * Explicit paging, mirroring the site: a page is 21 posts, the feed stops there and the buttons
@@ -30,7 +31,7 @@ data class FeedState(
     val rangeEnd: Int get() = (page - 1) * PAGE_SIZE + posts.size
 
     companion object {
-        const val PAGE_SIZE = 21
+        const val PAGE_SIZE = ZerochanClient.PAGE_SIZE
     }
 }
 

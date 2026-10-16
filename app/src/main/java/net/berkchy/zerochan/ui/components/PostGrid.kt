@@ -103,7 +103,7 @@ fun PostGridItem(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     if (post.isMultiple) {
-                        Badge(post.children.size.toString(), Icons.Rounded.PhotoLibrary)
+                        Badge(post.imageCount.toString(), Icons.Rounded.PhotoLibrary)
                     }
                     if (post.favorites > 0) {
                         Badge(post.favorites.toString(), Icons.Rounded.Favorite)

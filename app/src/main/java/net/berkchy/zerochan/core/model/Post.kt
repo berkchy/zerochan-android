@@ -13,11 +13,19 @@ data class Post(
     val favorites: Int = 0,
     /** All image ids that belong to the same (multi image) post, including [id]. */
     val children: List<Long> = emptyList(),
+    /**
+     * Size of the group when the ids are not known. The json listing only reports how many images
+     * a post has, so [children] stays empty there and the badge falls back to this.
+     */
+    val childCount: Int = 0,
 ) {
     val aspectRatio: Float
         get() = if (width > 0 && height > 0) width.toFloat() / height.toFloat() else 1f
 
-    val isMultiple: Boolean get() = children.size > 1
+    /** Number of images in this post, counting itself. */
+    val imageCount: Int get() = if (children.isNotEmpty()) children.size else childCount
+
+    val isMultiple: Boolean get() = imageCount > 1
 
     val sourceHost: String
         get() = source.toSourceHost()

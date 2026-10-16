@@ -204,7 +204,7 @@ fun PostBadge(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (post.isMultiple) Badge(post.children.size.toString(), Icons.Rounded.PhotoLibrary)
+        if (post.isMultiple) Badge(post.imageCount.toString(), Icons.Rounded.PhotoLibrary)
         if (post.favorites > 0) Badge(post.favorites.toString(), Icons.Rounded.Favorite)
     }
 }
