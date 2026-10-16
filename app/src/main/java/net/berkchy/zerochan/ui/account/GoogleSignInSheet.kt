@@ -169,7 +169,6 @@ fun GoogleSignInSheet(
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun GoogleSignInWebView(
     seedCookies: String,
@@ -179,7 +178,6 @@ private fun GoogleSignInWebView(
     loading: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val seed = remember(seedCookies) { seedCookies }
     val session by rememberUpdatedState(onSession)
     val failed by rememberUpdatedState(onFailure)
@@ -188,50 +186,50 @@ private fun GoogleSignInWebView(
 
     // Handed over from a WebView worker thread, so plain volatile flags rather than snapshot state.
     val flags = remember { SignInFlags() }
-
-    val webView = remember {
-        WebView(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
-            settings.configure(SiteGoogleSignIn.userAgent)
-            setBackgroundColor(Color.TRANSPARENT)
-            isVerticalScrollBarEnabled = false
-            isHorizontalScrollBarEnabled = false
-            webChromeClient = WebChromeClient()
-        }
-    }
+    // AndroidView builds the WebView itself; this is how the back handler reaches it.
+    val holder = remember { ViewHolder() }
 
     val sessionCallback: (String) -> Unit = { header -> session(header) }
     val failureCallback: (String) -> Unit = { reason -> failed(reason) }
     val progressCallback: (Boolean) -> Unit = { value -> progress(value) }
 
     BackHandler {
-        if (webView.canGoBack()) webView.goBack() else dismiss()
+        val current = holder.view
+        if (current != null && current.canGoBack()) current.goBack() else dismiss()
     }
 
     AndroidView(
         modifier = modifier,
-        factory = { view ->
-            val manager = CookieManager.getInstance()
-            manager.setAcceptCookie(true)
-            manager.setAcceptThirdPartyCookies(view, true)
+        factory = { ctx ->
             // Reuse the bot check the app already solved, so the interstitial is skipped. A
             // PHPSESSID is deliberately not seeded: the session that matters is the one the
             // Google sign in is about to create.
+            val manager = CookieManager.getInstance()
+            manager.setAcceptCookie(true)
             SiteGoogleSignIn.seed(seed)
             manager.flush()
-            view.webViewClient = SignInClient(
-                flags,
-                progressCallback,
-                sessionCallback,
-                failureCallback,
-            )
-            view.loadUrl(SiteGoogleSignIn.LOGIN_URL)
-            view
+
+            WebView(ctx).apply {
+                settings.configure(SiteGoogleSignIn.userAgent)
+                setBackgroundColor(Color.TRANSPARENT)
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                webChromeClient = WebChromeClient()
+                webViewClient = SignInClient(
+                    flags,
+                    progressCallback,
+                    sessionCallback,
+                    failureCallback,
+                )
+                // The account chooser Google opens is a top level navigation (`ux_mode=redirect`
+                // on zerochan's own markup), so third party cookies are not what carries the
+                // credential - the session cookie zerochan hands back is.
+                manager.setAcceptThirdPartyCookies(this, true)
+                loadUrl(SiteGoogleSignIn.LOGIN_URL)
+                holder.view = this
+            }
         },
-        onRelease = { view ->
+        onRelease = { view: WebView ->
             SiteGoogleSignIn.clear()
             view.stopLoading()
             (view.parent as? ViewGroup)?.removeView(view)
@@ -245,6 +243,10 @@ private class SignInFlags {
     @Volatile var credentialPosted = false
     @Volatile var handingOff = false
     @Volatile var handedOver = false
+}
+
+private class ViewHolder {
+    @Volatile var view: WebView? = null
 }
 
 private class SignInClient(
@@ -334,6 +336,7 @@ private class SignInClient(
     }
 }
 
+@SuppressLint("SetJavaScriptEnabled")
 private fun WebSettings.configure(userAgent: String) {
     javaScriptEnabled = true
     domStorageEnabled = true
