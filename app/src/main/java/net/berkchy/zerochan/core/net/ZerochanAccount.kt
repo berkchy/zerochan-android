@@ -94,6 +94,44 @@ class ZerochanAccount(
         }
     }
 
+    /**
+     * Imports a session the user already established in their browser.
+     *
+     * Sign in on zerochan.net in any browser, copy the `Cookie:` header (or just the
+     * `PHPSESSID=...` value) from devtools, and paste it here. The value goes into the same
+     * cookie jar the app already uses, so every request is authenticated exactly as if the
+     * login had happened in the app. The session id is never logged.
+     */
+    suspend fun importSession(cookieHeader: String): LoginResult = withContext(Dispatchers.IO) {
+        val phpsessid = Regex("PHPSESSID\\s*=\\s*([A-Za-z0-9_-]{8,})")
+            .find(cookieHeader)?.groupValues?.getOrNull(1)
+            ?: return@withContext LoginResult.Failure(
+                "Could not find PHPSESSID in that. Copy the full Cookie header, or just the " +
+                    "PHPSESSID= part.",
+            )
+
+        val guestId = Regex("guest_id\\s*=\\s*(\\d+)").find(cookieHeader)
+            ?.groupValues?.getOrNull(1)
+        val uid = Regex("(?:^|;\\s*)user_id\\s*=\\s*(\\d{1,12})").find(cookieHeader)
+            ?.groupValues?.getOrNull(1)
+
+        client.storeSessionCookies(phpsessid, guestId, uid)
+        AppLog.d(TAG, "imported a session (PHPSESSID captured, value not logged)")
+
+        val page = client.page("${ZerochanApi.BASE}/") ?: ""
+        when (val check = client.readAccount(page)) {
+            is AccountCheck.SignedIn -> {
+                val username = check.username.ifBlank { storedUsername.orEmpty() }
+                prefs.edit().putString(KEY_USERNAME, username.ifBlank { "member" }).apply()
+                LoginResult.Success(Account(username.ifBlank { "member" }))
+            }
+            AccountCheck.SignedOut -> {
+                client.clearSession()
+                LoginResult.Failure("That session is not signed in (or has expired)")
+            }
+        }
+    }
+
     fun signOut() {
         client.clearSession()
         prefs.edit().remove(KEY_USERNAME).apply()

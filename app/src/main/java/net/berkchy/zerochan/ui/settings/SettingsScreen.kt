@@ -38,6 +38,7 @@ import net.berkchy.zerochan.ui.downloads.LibraryViewModel
 fun SettingsScreen(
     viewModel: LibraryViewModel,
     onSignIn: () -> Unit,
+    onImportSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -53,7 +54,7 @@ fun SettingsScreen(
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
-        AccountCard(account, onSignIn)
+        AccountCard(account, onSignIn, onImportSession)
 
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(16.dp)) {
@@ -132,7 +133,11 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun AccountCard(account: net.berkchy.zerochan.core.net.Account?, onSignIn: () -> Unit) {
+private fun AccountCard(
+    account: net.berkchy.zerochan.core.net.Account?,
+    onSignIn: () -> Unit,
+    onImportSession: () -> Unit,
+) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Row(
             Modifier.fillMaxWidth().clickable(onClick = onSignIn).padding(16.dp),
@@ -155,6 +160,11 @@ private fun AccountCard(account: net.berkchy.zerochan.core.net.Account?, onSignI
             Spacer(Modifier.width(12.dp))
             androidx.compose.material3.TextButton(onClick = onSignIn) {
                 Text(if (account == null) "Sign in" else "Manage")
+            }
+            if (account == null) {
+                androidx.compose.material3.TextButton(onClick = onImportSession) {
+                    Text("Import")
+                }
             }
         }
     }

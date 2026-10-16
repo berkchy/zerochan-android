@@ -59,6 +59,18 @@ class ZerochanCookieJar(context: Context) : CookieJar {
 
     fun has(name: String): Boolean = synchronized(store) { store.containsKey(name) }
 
+    /** Installs a session established elsewhere (see `ZerochanAccount.importSession`). */
+    fun storeSession(cookies: List<Pair<String, String>>) {
+        val host = BASE.toHttpUrl()
+        synchronized(store) {
+            for ((name, value) in cookies) {
+                val cookie = Cookie.parse(host, "$name=$value; Path=/")
+                if (cookie != null) store[name] = cookie
+            }
+            persist()
+        }
+    }
+
     fun cookieHeader(): String = synchronized(store) {
         store.values.filter { it.expiresAt > System.currentTimeMillis() }
             .joinToString("; ") { "${it.name}=${it.value}" }

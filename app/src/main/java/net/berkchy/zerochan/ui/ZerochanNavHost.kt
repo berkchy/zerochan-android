@@ -65,6 +65,7 @@ import net.berkchy.zerochan.core.auth.GoogleOAuthSession
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.ui.downloads.LibraryScreen
 import net.berkchy.zerochan.ui.account.AccountViewModel
+import net.berkchy.zerochan.ui.account.ImportSessionDialog
 import net.berkchy.zerochan.ui.account.LoginScreen
 import net.berkchy.zerochan.ui.account.RegisterScreen
 import net.berkchy.zerochan.ui.downloads.LibraryViewModel
@@ -124,6 +125,7 @@ fun ZerochanNavHost(
         }
     }
     var searchError by remember { mutableStateOf<String?>(null) }
+    var showImportSession by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
 
     // zerochan answers /search?q= with a 301 onto the canonical tag, so the redirect has to be
@@ -189,6 +191,21 @@ fun ZerochanNavHost(
             }
         },
     ) { padding ->
+        if (showImportSession) {
+            val accountVm: AccountViewModel = viewModel(
+                key = "account",
+                factory = AccountViewModel.Factory(repository),
+            )
+            val accountState by accountVm.state.collectAsStateWithLifecycle()
+            ImportSessionDialog(
+                onDismiss = { showImportSession = false; accountVm.clearError() },
+                onImport = { header ->
+                    accountVm.importSession(header)
+                },
+                busy = accountState.busy,
+                error = accountState.error,
+            )
+        }
         LaunchedEffect(googleMessage.value) {
             googleMessage.value?.let {
                 snackbar.showSnackbar(it)
@@ -249,6 +266,7 @@ fun ZerochanNavHost(
                 SettingsScreen(
                     viewModel = vm,
                     onSignIn = { navController.navigate(Destination.LOGIN) },
+                    onImportSession = { showImportSession = true },
                     modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
                 )
             }

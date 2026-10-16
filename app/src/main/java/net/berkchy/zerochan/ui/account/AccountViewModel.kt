@@ -58,6 +58,18 @@ class AccountViewModel(
         }
     }
 
+    fun importSession(cookieHeader: String) {
+        if (_state.value.busy) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true, error = null)
+            when (val result = repository.importSession(cookieHeader)) {
+                is LoginResult.Success -> _state.value = AccountUiState(account = result.account)
+                is LoginResult.Failure ->
+                    _state.value = _state.value.copy(busy = false, error = result.reason)
+            }
+        }
+    }
+
     fun signOut() {
         repository.signOut()
         _state.value = AccountUiState()

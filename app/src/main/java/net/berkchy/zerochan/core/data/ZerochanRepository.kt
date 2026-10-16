@@ -66,6 +66,13 @@ class ZerochanRepository(
         captchaToken: String,
     ): RegisterResult = registrar.register(username, email, password, verify, captchaToken)
 
+    suspend fun importSession(cookieHeader: String): LoginResult {
+        val result = _account.importSession(cookieHeader)
+        accountState.value = _account.current()
+        client.clearCache()
+        return result
+    }
+
     fun signOut() {
         _account.signOut()
         accountState.value = null

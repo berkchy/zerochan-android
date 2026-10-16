@@ -57,6 +57,16 @@ class ZerochanClient(
 
     fun hasSession(): Boolean = cookieJar.has("PHPSESSID")
 
+    fun storeSessionCookies(phpsessid: String, guestId: String?, userId: String?) {
+        val cookies = buildList {
+            add("PHPSESSID" to phpsessid)
+            guestId?.let { add("guest_id" to it) }
+            userId?.let { add("user_id" to it) }
+        }
+        cookieJar.storeSession(cookies)
+        clearCache()
+    }
+
     fun clearSession() {
         cookieJar.clearSession()
         clearCache()
