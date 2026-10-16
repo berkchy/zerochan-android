@@ -73,6 +73,20 @@ class ZerochanRepository(
         return result
     }
 
+    /**
+     * Installs the session zerochan issued from its own Google sign in, run inside the app's
+     * sign in WebView. Same jar, same verification as [importSession].
+     */
+    suspend fun signInWithGoogle(cookieHeader: String): LoginResult {
+        val result = _account.adoptWebSession(cookieHeader)
+        accountState.value = _account.current()
+        client.clearCache()
+        return result
+    }
+
+    /** Cookies the WebView is seeded with, so it does not have to redo the bot check. */
+    fun cookieHeader(): String = client.cookieHeader()
+
     fun signOut() {
         _account.signOut()
         accountState.value = null

@@ -103,12 +103,27 @@ class ZerochanAccount(
      * login had happened in the app. The session id is never logged.
      */
     suspend fun importSession(cookieHeader: String): LoginResult = withContext(Dispatchers.IO) {
+        adopt(
+            cookieHeader,
+            missing = "Could not find PHPSESSID in that. Copy the full Cookie header, or just " +
+                "the PHPSESSID= part.",
+        )
+    }
+
+    /**
+     * Adopts the session the site's own Google sign in created inside the sign in WebView.
+     *
+     * Identical mechanics to [importSession] - the cookie goes into the same jar - but the jar
+     * already holds one, so there is nothing to paste and no user-visible cookie to leak.
+     */
+    suspend fun adoptWebSession(cookieHeader: String): LoginResult = withContext(Dispatchers.IO) {
+        adopt(cookieHeader, missing = "Google sign in did not return a zerochan session")
+    }
+
+    private suspend fun adopt(cookieHeader: String, missing: String): LoginResult {
         val phpsessid = Regex("PHPSESSID\\s*=\\s*([A-Za-z0-9_-]{8,})")
             .find(cookieHeader)?.groupValues?.getOrNull(1)
-            ?: return@withContext LoginResult.Failure(
-                "Could not find PHPSESSID in that. Copy the full Cookie header, or just the " +
-                    "PHPSESSID= part.",
-            )
+            ?: return LoginResult.Failure(missing)
 
         val guestId = Regex("guest_id\\s*=\\s*(\\d+)").find(cookieHeader)
             ?.groupValues?.getOrNull(1)
@@ -116,10 +131,10 @@ class ZerochanAccount(
             ?.groupValues?.getOrNull(1)
 
         client.storeSessionCookies(phpsessid, guestId, uid)
-        AppLog.d(TAG, "imported a session (PHPSESSID captured, value not logged)")
+        AppLog.d(TAG, "adopted a session (PHPSESSID captured, value not logged)")
 
         val page = client.page("${ZerochanApi.BASE}/") ?: ""
-        when (val check = client.readAccount(page)) {
+        return when (val check = client.readAccount(page)) {
             is AccountCheck.SignedIn -> {
                 val username = check.username.ifBlank { storedUsername.orEmpty() }
                 prefs.edit().putString(KEY_USERNAME, username.ifBlank { "member" }).apply()

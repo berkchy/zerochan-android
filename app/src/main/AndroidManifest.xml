@@ -32,23 +32,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Receives the OAuth 2.0 redirect (PKCE) from the Custom Tab. -->
-        <activity
-            android:name=".core.auth.OAuthRedirectActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:noHistory="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:host="oauth2redirect"
-                    android:scheme="${applicationId}" />
-            </intent-filter>
-        </activity>
-
         <!-- Keeps the download queue alive and hosts the progress notification. -->
         <service
             android:name=".core.download.DownloadService"

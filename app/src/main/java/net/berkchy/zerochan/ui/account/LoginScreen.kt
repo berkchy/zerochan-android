@@ -69,7 +69,6 @@ fun LoginScreen(
     onOpenRegister: () -> Unit,
     onOpenGoogle: () -> Unit,
     modifier: Modifier = Modifier,
-    message: String? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
@@ -104,14 +103,6 @@ fun LoginScreen(
             }
 
             GoogleButton(onClick = onOpenGoogle)
-            if (message != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
-            }
             Spacer(Modifier.height(18.dp))
 
             OrDivider()

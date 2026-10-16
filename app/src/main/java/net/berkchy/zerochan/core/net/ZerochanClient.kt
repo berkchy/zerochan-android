@@ -57,6 +57,9 @@ class ZerochanClient(
 
     fun hasSession(): Boolean = cookieJar.has("PHPSESSID")
 
+    /** Everything currently held for zerochan, in `Cookie:` header form. */
+    fun cookieHeader(): String = cookieJar.cookieHeader()
+
     fun storeSessionCookies(phpsessid: String, guestId: String?, userId: String?) {
         val cookies = buildList {
             add("PHPSESSID" to phpsessid)

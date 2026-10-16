@@ -17,11 +17,6 @@ android {
         versionCode = 2
         versionName = "1.1.0"
         vectorDrawables { useSupportLibrary = true }
-
-        // Supplied by CI / local.properties for the "Sign in with Google" button. Empty means
-        // the button explains that it is not configured yet instead of failing silently.
-        val googleClientId = (project.findProperty("googleClientId") as String?) ?: ""
-        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
     }
 
     signingConfigs {

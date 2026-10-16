@@ -91,33 +91,56 @@ Five densities (mdpi to xxxhdpi), saved as WebP to keep the resource folder arou
 | --- | --- |
 | Sign in with username / password | Works. `POST /login`, no captcha on this endpoint. |
 | Register | Works. reCAPTCHA v2 is rendered in-app; the user ticks it and the `g-recaptcha-response` token is posted with the form. |
+| Sign in with Google | Works. The real zerochan `/login` page, and its real Google button, in an in-app WebView. |
 | Import session | Works. Paste the `PHPSESSID` cookie from a signed-in browser session. |
-| Sign in with Google | Needs one action from the site owner - see below. |
 
 Nothing but the session cookie is stored. The password is never written anywhere, and signing
 out drops `PHPSESSID` / `guest_id` while keeping the bot-check cookie.
 
+#### Why Google sign in runs the website
+
 zerochan signs users in with Google Identity Services against **its own** OAuth client
-(`280853676974-…apps.googleusercontent.com`). A third party Android app cannot reuse that
-client, so Google sign in is implemented as the standard OAuth 2.0 Authorization Code flow with
-PKCE (Custom Tab → `net.berkchy.zerochan://oauth2redirect` → token exchange) and waits on
-`GOOGLE_CLIENT_ID`. For the flow to complete, zerochan has to list this app as an authorized
-client in their Google Cloud project:
+(`280853676974-…apps.googleusercontent.com`), configured as:
 
-```
-Package name : net.berkchy.zerochan
-Redirect URI : net.berkchy.zerochan://oauth2redirect
+```html
+<div id="g_id_onload"
+     data-client_id="280853676974-…apps.googleusercontent.com"
+     data-ux_mode="redirect"
+     data-login_uri="https://www.zerochan.net/oauth"></div>
 ```
 
-Set the client id in `gradle.properties`:
+`login_uri` makes GIS post `credential=<jwt>` straight to `/oauth`, and that endpoint verifies
+the jwt against zerochan's client id. A token minted for any *other* client is refused with
+`Invalid ID token, account unlinked?`.
 
-```properties
-googleClientId=000000000000-xxxxxxxxxxxx.apps.googleusercontent.com
-```
+That rules out the two obvious approaches:
 
-Until then the button explains that it is not configured rather than failing silently. In the
-meantime **Settings → Account → Import** takes a session straight from the website, which needs
-nobody's cooperation.
+- **Google's Android SDK** (`play-services-auth`, Credential Manager, `GetSignInWithGoogle`)
+  exists to mint tokens for the *calling app's* client, not for a third party's, so it cannot
+  produce a jwt `/oauth` would accept.
+- **OAuth 2.0 authorization code + PKCE against `oauth2.googleapis.com/token`** fails for the
+  same reason - the `id_token` comes back with *our* `aud`, not zerochan's. An earlier version of
+  this app tried that and could never have worked; it is gone.
+
+The credential only ever comes out of a real browser engine, so `GoogleSignInSheet` loads the
+actual `/login` document in a WebView. The user taps the actual Google button, Google posts the
+credential to `/oauth`, the server binds the account to a `PHPSESSID` in the WebView's cookie
+jar, and that cookie is then installed in the app's own OkHttp jar (`SiteGoogleSignIn.seed` /
+`harvest`, `ZerochanAccount.adoptWebSession`). From there the app is signed in exactly as it
+would be after a password sign in, and the WebView is thrown away. No Google SDK, no OAuth
+client registration, nobody to ask.
+
+Two details the WebView needs to get right:
+
+- It uses the same desktop Chrome `User-Agent` as every other request. `xbotcheck` is tied to the
+  agent that solved it, and Google refuses OAuth from clients it detects as embedded WebViews,
+  which it does from the `; wv` token a stock WebView sends.
+- Only `xbotcheck` / `guest_id` / `z_theme` are seeded into it. A `PHPSESSID` is never seeded, so
+  an existing session can never be mistaken for the one Google is about to create.
+
+If the Google account has no zerochan account yet, `/oauth` answers `200` with the rejection as
+the page body; that text is read back so the sheet can say exactly that instead of failing
+vaguely. Register on the website first, then link Google in the account settings.
 
 ### Signing
 

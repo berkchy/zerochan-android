@@ -28,15 +28,12 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -59,12 +56,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import net.berkchy.zerochan.ZerochanApp
-import net.berkchy.zerochan.BuildConfig
-import net.berkchy.zerochan.core.auth.GoogleAuthEvent
-import net.berkchy.zerochan.core.auth.GoogleOAuthSession
 import net.berkchy.zerochan.core.data.ZerochanRepository
 import net.berkchy.zerochan.ui.downloads.LibraryScreen
 import net.berkchy.zerochan.ui.account.AccountViewModel
+import net.berkchy.zerochan.ui.account.GoogleSignInSheet
 import net.berkchy.zerochan.ui.account.ImportSessionDialog
 import net.berkchy.zerochan.ui.account.LoginScreen
 import net.berkchy.zerochan.ui.account.RegisterScreen
@@ -106,26 +101,9 @@ fun ZerochanNavHost(
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val snackbar = remember { SnackbarHostState() }
-    val scopeGoogle = rememberCoroutineScope()
-    val googleMessage = remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        GoogleOAuthSession.events.collect { event ->
-            googleMessage.value = when (event) {
-                GoogleAuthEvent.NeedsConfiguration ->
-                    "Google sign in needs an OAuth client id. See the README."
-                GoogleAuthEvent.Cancelled -> "Google sign in was cancelled"
-                is GoogleAuthEvent.Failure -> event.reason
-                is GoogleAuthEvent.Code ->
-                    "Google authorised, but zerochan has to accept this app as an " +
-                        "OAuth client before it can sign you in. See the README."
-            }
-        }
-    }
     var searchError by remember { mutableStateOf<String?>(null) }
     var showImportSession by remember { mutableStateOf(false) }
+    var showGoogleSignIn by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
 
     // zerochan answers /search?q= with a 301 onto the canonical tag, so the redirect has to be
@@ -163,7 +141,6 @@ fun ZerochanNavHost(
     )
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             AnimatedVisibility(showBars, enter = fadeIn(), exit = fadeOut()) {
                 NavigationBar {
@@ -210,10 +187,24 @@ fun ZerochanNavHost(
                 error = accountState.error,
             )
         }
-        LaunchedEffect(googleMessage.value) {
-            googleMessage.value?.let {
-                snackbar.showSnackbar(it)
-                googleMessage.value = null
+
+        if (showGoogleSignIn) {
+            val accountVm: AccountViewModel = viewModel(
+                key = "account",
+                factory = AccountViewModel.Factory(repository),
+            )
+            val accountState by accountVm.state.collectAsStateWithLifecycle()
+            GoogleSignInSheet(
+                seedCookies = remember { repository.cookieHeader() },
+                busy = accountState.busy,
+                error = accountState.error,
+                onDismiss = { showGoogleSignIn = false },
+                onSession = accountVm::signInWithGoogle,
+            )
+            // The sheet stays up while the harvested session is verified against zerochan, so a
+            // rejection is reported where the user was looking rather than behind a closed sheet.
+            LaunchedEffect(accountState.account) {
+                if (accountState.account != null) showGoogleSignIn = false
             }
         }
         // Consume the window insets once here so nested screens (the post screen has its own
@@ -284,11 +275,7 @@ fun ZerochanNavHost(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
                     onOpenRegister = { navController.navigate(Destination.REGISTER) },
-                    onOpenGoogle = {
-                        val intent = GoogleOAuthSession.begin(context, BuildConfig.GOOGLE_CLIENT_ID)
-                        if (intent != null) runCatching { context.startActivity(intent) }
-                    },
-                    message = googleMessage.value,
+                    onOpenGoogle = { showGoogleSignIn = true },
                     modifier = safePadding,
                 )
             }
