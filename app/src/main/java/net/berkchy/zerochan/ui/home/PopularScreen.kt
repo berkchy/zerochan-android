@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -254,11 +255,12 @@ private fun PopularStrip(
     // Follow the pager. Before the rail has been measured there is nothing to centre against, so
     // that first pass is a plain jump to the item; every swipe after that has a measured tile.
     LaunchedEffect(currentPage, items.size) {
-        val tile = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentPage }
+        val info = listState.layoutInfo
+        val tile = info.visibleItemsInfo.firstOrNull { it.index == currentPage }
         if (tile == null) {
             listState.animateScrollToItem(currentPage)
         } else {
-            val delta = (tile.offset + tile.size / 2) - (listState.viewportSize.width / 2)
+            val delta = (tile.offset + tile.size / 2) - (info.viewportSize.width / 2)
             if (delta != 0) listState.animateScrollBy(delta.toFloat())
         }
     }
