@@ -54,6 +54,15 @@ Minimum Android 7.0 (API 24), built against API 35.
 - **Square thumbnails.** Grid, library and related strips use uniform 1:1 cells with a centre
   crop, so the layout no longer depends on the artwork proportions.
 - **Window insets.** Content no longer draws under the status bar or the navigation bar.
+- **Settings and Popular no longer draw under the system bars.** Settings was the one screen that
+  took only the *bottom* inset, so its heading sat behind the status bar, and the popular pager
+  took none at all. Both now go through the same inset handling as every other screen.
+- **The settings list lines up.** The account and downloads cards were touching, the diagnostics
+  card was padded a second time by its own padding and therefore sat 32dp in from the cards above
+  it, and every switch row carried a doubled gap before the switch. The "Logs" card is gone - it
+  only repeated the path the diagnostics card already shows.
+- **One tap target per action on the account card.** The whole row and the buttons inside it were
+  all clickable, so the same thing was announced twice and the name column was squeezed.
 - **Thumbnails always load.** Previews are requested as JPEG; AVIF decoding is not available on
   every Android release still supported.
 - **Icon** - full launcher/splash set generated from the new artwork, five densities, WebP.
@@ -70,6 +79,9 @@ Minimum Android 7.0 (API 24), built against API 35.
 
 ### Added
 
+- **Popular gets a thumbnail rail.** Under the picture, up to nine tightly packed thumbnails with
+  the one on show ringed. The rail follows the swipe by itself, and tapping a thumbnail brings
+  that picture in from a little above at a little under full size, growing into place.
 - **Sign in with Google.** zerochan signs users in with Google Identity Services against its own
   OAuth client, so the credential only ever comes out of a real browser engine - the sign in
   sheet loads the actual zerochan `/login` page, with the actual Google button, in an in-app

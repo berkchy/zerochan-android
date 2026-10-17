@@ -47,7 +47,7 @@ fun DiagnosticsSection(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val file = remember(context) { AppLog.logFile(context) }
 
-    Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {
@@ -69,12 +69,13 @@ fun DiagnosticsSection(modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { shareLog(context) }) {
-                        Icon(Icons.Rounded.Share, contentDescription = null)
+                        Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Share")
                     }
                     OutlinedButton(onClick = { copyPath(context, file.absolutePath) }) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null)
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text("Copy path")
                     }
                 }
@@ -83,14 +84,16 @@ fun DiagnosticsSection(modifier: Modifier = Modifier) {
                     OutlinedButton(onClick = {
                         openFolder(context)
                     }) {
-                        Icon(Icons.Rounded.FolderOpen, contentDescription = null)
+                        Icon(Icons.Rounded.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text("Open folder")
                     }
                     OutlinedButton(onClick = {
                         AppLog.clear(context)
                         AppLog.d("diag", "log cleared by the user")
                     }) {
-                        Icon(Icons.Rounded.Delete, contentDescription = null)
+                        Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text("Clear")
                     }
                 }

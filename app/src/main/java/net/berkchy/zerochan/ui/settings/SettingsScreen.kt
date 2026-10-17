@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.berkchy.zerochan.ui.downloads.DiagnosticsSection
@@ -55,6 +54,8 @@ fun SettingsScreen(
         Spacer(Modifier.height(16.dp))
 
         AccountCard(account, onSignIn, onImportSession)
+
+        Spacer(Modifier.height(12.dp))
 
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(16.dp)) {
@@ -113,21 +114,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Logs", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Android/data/net.berkchy.zerochan/files/logs",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        DiagnosticsSection(Modifier.padding(horizontal = 0.dp))
+        DiagnosticsSection()
         Spacer(Modifier.height(32.dp))
     }
 }
@@ -140,7 +127,7 @@ private fun AccountCard(
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Row(
-            Modifier.fillMaxWidth().clickable(onClick = onSignIn).padding(16.dp),
+            Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Avatar(account)
@@ -228,7 +215,6 @@ private fun SwitchRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = onChange)
     }
 }

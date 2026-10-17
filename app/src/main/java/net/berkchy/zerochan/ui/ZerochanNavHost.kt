@@ -262,7 +262,7 @@ fun ZerochanNavHost(
                     viewModel = vm,
                     onSignIn = { navController.navigate(Destination.LOGIN) },
                     onImportSession = { showImportSession = true },
-                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                    modifier = safePadding,
                 )
             }
 
