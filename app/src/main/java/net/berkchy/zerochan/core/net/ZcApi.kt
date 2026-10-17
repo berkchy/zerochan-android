@@ -40,7 +40,7 @@ object ZcApi {
      * One listing page, or null when the mirror cannot answer (offline, rate limited, unknown
      * shape). An empty list is a real answer: the tag exists but holds nothing for this page.
      */
-    fun posts(
+    suspend fun posts(
         client: OkHttpClient,
         feed: Feed,
         limit: Int,
@@ -68,7 +68,7 @@ object ZcApi {
      * Ids of the images that share a post, itself included. Null when the mirror has no detail for
      * it, which also covers ids zerochan no longer serves.
      */
-    fun children(client: OkHttpClient, id: Long): List<Long>? =
+    suspend fun children(client: OkHttpClient, id: Long): List<Long>? =
         get(client, "$BASE/posts/$id")?.let { decodeChildren(it, id) }
 
     private fun listingPath(feed: Feed): String = when (feed) {
